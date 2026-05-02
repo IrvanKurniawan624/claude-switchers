@@ -1,4 +1,11 @@
 @echo off
+if exist "%~dp0.env" (
+  for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+    if not "%%A"=="" if not "%%A:~0,1%"=="#" (
+      if not defined %%A set "%%A=%%B"
+    )
+  )
+)
 if "%DEEPSEEK_API_KEY%"=="" (
   echo DEEPSEEK_API_KEY is not set.
   echo Run: set DEEPSEEK_API_KEY=your-key
