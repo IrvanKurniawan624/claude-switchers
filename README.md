@@ -41,34 +41,42 @@ These are **session-scoped** — closing the terminal resets everything. No glob
 | `claude-pro.cmd` | Command Prompt equivalent for `claude-pro` |
 | `claude-deepseek.cmd` | Command Prompt equivalent for `claude-deepseek` |
 | `install-switchers.ps1` | One-time installer: patches PowerShell profiles and adds folder to user `PATH` |
+| `.env` | Your API key — **never committed**, lives only on your machine |
+| `.env.example` | Template showing what goes in `.env` |
 
 ---
 
 ## Installation
 
-### Step 1 — Clone or copy this folder
+### Step 1 — Clone the repo
 
-Place the folder anywhere on your system, for example:
+```
+git clone https://github.com/IrvanKurniawan624/claude-switchers.git
+```
+
+Place it anywhere on your system, for example:
 
 ```
 C:\Users\YourName\claude-switchers
 ```
 
-### Step 2 — Set your DeepSeek API key
+### Step 2 — Add your DeepSeek API key
 
-Store your key as a persistent environment variable so you don't have to set it every session.
+Copy `.env.example` to `.env` in the same folder:
 
-**PowerShell (sets it permanently for your user):**
 ```powershell
-[Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY", "<DeepSeek API>", "User")
+Copy-Item ".env.example" ".env"
 ```
 
-**Or temporarily for the current session only:**
-```powershell
-$env:DEEPSEEK_API_KEY = "<DeepSeek API>"
+Then open `.env` and replace the placeholder with your real key:
+
+```
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 ```
 
 Get your API key from [platform.deepseek.com](https://platform.deepseek.com/).
+
+> `.env` is listed in `.gitignore` — it will **never** be committed or pushed to GitHub.
 
 ### Step 3 — Run the installer
 
@@ -113,7 +121,7 @@ The profile changes take effect in any new PowerShell or Command Prompt window.
 # Use Claude Pro (subscription)
 claude-pro
 
-# Use DeepSeek (requires DEEPSEEK_API_KEY to be set)
+# Use DeepSeek — reads DEEPSEEK_API_KEY from .env automatically
 claude-deepseek
 
 # Pass arguments through to claude
@@ -127,10 +135,11 @@ claude-deepseek --dangerously-skip-permissions
 :: Use Claude Pro
 claude-pro
 
-:: Use DeepSeek (requires DEEPSEEK_API_KEY env var)
-set DEEPSEEK_API_KEY=<DeepSeek API>
+:: Use DeepSeek — reads DEEPSEEK_API_KEY from .env automatically
 claude-deepseek
 ```
+
+No need to manually set `DEEPSEEK_API_KEY` each session — both scripts load it from `.env` on the fly if it isn't already set in your environment.
 
 ---
 
