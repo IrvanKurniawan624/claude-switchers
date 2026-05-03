@@ -8,7 +8,12 @@ if exist "%~dp0.env" (
 )
 if "%DEEPSEEK_API_KEY%"=="" (
   echo DEEPSEEK_API_KEY is not set.
-  echo Run: set DEEPSEEK_API_KEY=your-key
+  echo.
+  echo Set it for this session, then re-run:
+  echo   PowerShell:  $env:DEEPSEEK_API_KEY='your-key'
+  echo   CMD:         set DEEPSEEK_API_KEY=your-key
+  echo.
+  echo Or add it permanently to .env in the claude-switchers folder.
   exit /b 1
 )
 
