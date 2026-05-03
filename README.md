@@ -37,10 +37,11 @@ These are **session-scoped** — closing the terminal resets everything. No glob
 
 | File | Description |
 |---|---|
-| `ClaudeModelSwitchers.ps1` | PowerShell functions (`claude-pro`, `claude-deepseek`) |
-| `claude-pro.cmd` | Command Prompt equivalent for `claude-pro` |
-| `claude-deepseek.cmd` | Command Prompt equivalent for `claude-deepseek` |
+| `claude-pro.cmd` | Sets Claude Code to use your Claude Pro subscription and launches `claude` |
+| `claude-deepseek.cmd` | Sets Claude Code to use the DeepSeek API and launches `claude` |
+| `ClaudeModelSwitchers.ps1` | Loaded by your PowerShell profile on startup — pre-loads `.env` into the session |
 | `install-switchers.ps1` | One-time installer: patches PowerShell profiles and adds folder to user `PATH` |
+| `uninstall-switchers.ps1` | Removes profile patches, removes folder from user `PATH`, and deletes `.env` |
 | `.env` | Your API key — **never committed**, lives only on your machine |
 | `.env.example` | Template showing what goes in `.env` |
 
@@ -107,6 +108,10 @@ The installer wraps its changes in a clearly marked block so it can update the p
 
 > **If you move the folder later**, just re-run the installer from the new location — it will replace the old path in both profiles automatically.
 
+> **Note:** The installer only patches profile files that already exist. If you have no profile yet, it will tell you the command to create one and ask you to re-run the installer.
+
+> **Upgrading from an earlier version?** Just re-run the installer — it will automatically clean up any profile files it previously created that are no longer needed.
+
 ### Step 4 — Open a new terminal
 
 The profile changes take effect in any new PowerShell or Command Prompt window.
@@ -155,6 +160,23 @@ When using `claude-deepseek`, all Claude Code model slots are mapped as follows:
 | Subagent | `deepseek-v4-pro` |
 
 Effort level is set to `max` and timeout to 600 seconds (10 minutes) to accommodate longer DeepSeek responses.
+
+---
+
+## Uninstallation
+
+To fully remove claude-switchers from your system, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\path\to\claude-switchers\uninstall-switchers.ps1"
+```
+
+The uninstaller does three things:
+1. **Removes the switchers block** from both PowerShell profiles (`WindowsPowerShell\profile.ps1` and `PowerShell\profile.ps1`)
+2. **Removes the folder from your user `PATH`** so the commands are no longer available in Command Prompt
+3. **Deletes your `.env` file** so your API key is cleaned up
+
+Open a new terminal after running it to confirm everything is gone. The repo folder itself is not deleted — remove it manually if you no longer need it.
 
 ---
 

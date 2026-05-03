@@ -18,19 +18,21 @@ $blockEnd
 "@
 
 foreach ($profilePath in $profilePaths) {
-    $profileDir = Split-Path -Parent $profilePath
-    if (-not (Test-Path -LiteralPath $profileDir)) {
-        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
-    }
+    if (-not (Test-Path -LiteralPath $profilePath)) { continue }
 
-    $content = ""
-    if (Test-Path -LiteralPath $profilePath) {
-        $content = Get-Content -LiteralPath $profilePath -Raw
-    }
-
+    $content = Get-Content -LiteralPath $profilePath -Raw
     $escapedStart = [regex]::Escape($blockStart)
     $escapedEnd = [regex]::Escape($blockEnd)
     $pattern = "(?s)$escapedStart.*?$escapedEnd"
+
+    # If the file contains only our block, it was created by a previous installer run.
+    # Remove it rather than leaving a script file that triggers execution policy errors.
+    $stripped = [regex]::Replace($content, $pattern, "").Trim()
+    if ($content -match $pattern -and [string]::IsNullOrWhiteSpace($stripped)) {
+        Remove-Item -LiteralPath $profilePath -Force
+        Write-Host "Removed installer-created profile (no user content): $profilePath"
+        continue
+    }
 
     if ($content -match $pattern) {
         $content = [regex]::Replace($content, $pattern, $profileBlock)
