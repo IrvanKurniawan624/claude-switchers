@@ -1,7 +1,11 @@
 $ErrorActionPreference = "Stop"
 
-$switcherDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$documents = [Environment]::GetFolderPath("MyDocuments")
+# TIP: You can also uninstall through the interactive menu:
+#   claude-config  →  u (uninstall)
+
+$switcherDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$launchersDir = Join-Path $switcherDir "launchers"
+$documents    = [Environment]::GetFolderPath("MyDocuments")
 
 $profilePaths = @(
     (Join-Path $documents "WindowsPowerShell\profile.ps1"),
@@ -9,8 +13,9 @@ $profilePaths = @(
 )
 
 $blockStart = "# BEGIN Claude Code model switchers"
-$blockEnd = "# END Claude Code model switchers"
+$blockEnd   = "# END Claude Code model switchers"
 
+# ── 1. Remove profile patches ────────────────────────────────────────────────
 foreach ($profilePath in $profilePaths) {
     if (-not (Test-Path -LiteralPath $profilePath)) {
         Write-Host "No profile found at: $profilePath (skipping)"
@@ -19,7 +24,7 @@ foreach ($profilePath in $profilePaths) {
 
     $content = Get-Content -LiteralPath $profilePath -Raw
     $escapedStart = [regex]::Escape($blockStart)
-    $escapedEnd = [regex]::Escape($blockEnd)
+    $escapedEnd   = [regex]::Escape($blockEnd)
     $pattern = "(?s)\r?\n?[ \t]*$escapedStart.*?$escapedEnd[ \t]*\r?\n?"
 
     if ($content -match $pattern) {
@@ -36,28 +41,46 @@ foreach ($profilePath in $profilePaths) {
     }
 }
 
+# ── 2. Remove switcherDir and launchersDir from user PATH ───────────────────
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if (-not [string]::IsNullOrWhiteSpace($userPath)) {
-    $pathParts = $userPath -split ";" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    $newParts = $pathParts | Where-Object { $_.TrimEnd("\") -ine $switcherDir.TrimEnd("\") }
-
-    if ($newParts.Count -lt $pathParts.Count) {
-        $newPath = $newParts -join ";"
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-        $env:Path = ($env:Path -split ";" | Where-Object { $_.TrimEnd("\") -ine $switcherDir.TrimEnd("\") }) -join ";"
-        Write-Host "Removed from user PATH: $switcherDir"
+    $parts    = $userPath -split ";" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $newParts = $parts | Where-Object {
+        $_.TrimEnd("\") -ine $switcherDir.TrimEnd("\") -and
+        $_.TrimEnd("\") -ine $launchersDir.TrimEnd("\")
+    }
+    if ($newParts.Count -lt $parts.Count) {
+        [Environment]::SetEnvironmentVariable("Path", ($newParts -join ";"), "User")
+        $env:Path = ($env:Path -split ";" | Where-Object {
+            $_.TrimEnd("\") -ine $switcherDir.TrimEnd("\") -and
+            $_.TrimEnd("\") -ine $launchersDir.TrimEnd("\")
+        }) -join ";"
+        Write-Host "Removed from user PATH."
     } else {
-        Write-Host "Not found in user PATH: $switcherDir (skipping)"
+        Write-Host "Paths not found in user PATH (skipping)."
     }
 }
 
-$envFile = Join-Path $switcherDir ".env"
-if (Test-Path -LiteralPath $envFile) {
-    Remove-Item -LiteralPath $envFile -Force
-    Write-Host "Deleted .env file."
+# ── 3. Delete generated/config files ─────────────────────────────────────────
+foreach ($target in @(
+    (Join-Path $switcherDir "config.json"),
+    (Join-Path $switcherDir ".env")
+)) {
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Force
+        Write-Host "Deleted: $target"
+    } else {
+        Write-Host "Not found (skipping): $target"
+    }
+}
+
+if (Test-Path $launchersDir) {
+    Get-ChildItem $launchersDir -Filter "*.cmd" | Remove-Item -Force
+    Write-Host "Cleared launchers\."
 } else {
-    Write-Host "No .env file found (skipping)."
+    Write-Host "No launchers\\ folder found (skipping)."
 }
 
 Write-Host ""
 Write-Host "Uninstalled. Open a new terminal to confirm the changes take effect."
+Write-Host "The repo folder itself was not deleted — remove it manually if you no longer need it."

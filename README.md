@@ -1,35 +1,63 @@
 # Claude Code Model Switchers
 
-Switch [Claude Code](https://claude.ai/code) between your **Claude Pro subscription** and **DeepSeek** (via the DeepSeek API) without touching any config files — just run a single command per session.
+Switch [Claude Code](https://claude.ai/code) between **Claude Pro** and any **Anthropic-API-compatible provider** — DeepSeek, Kimi, GLM, Qwen, MiniMax, OpenRouter, or your own custom endpoint — without touching any config files.
 
 ---
 
-## How It Works
+## Quick start
 
-Claude Code reads model identity and API routing from environment variables. This tool provides two commands that set or clear those variables before launching `claude`:
+```powershell
+claude-pro           # Claude Pro subscription (default)
+claude-deepseek      # DeepSeek API
+claude-kimi          # Kimi K2 (Moonshot)
+claude-glm           # GLM (Z.ai)
+claude-switch        # interactive picker — choose from all enabled providers
+claude-config        # manage providers, API keys, add custom endpoints
+```
 
-| Command | What it does |
+All commands pass extra arguments straight through to `claude`:
+
+```powershell
+claude-deepseek --resume
+claude-kimi --dangerously-skip-permissions
+claude-switch pro --version
+```
+
+---
+
+## How it works
+
+Claude Code reads model identity and API routing from environment variables. This tool sets (or clears) those vars in the current process before launching `claude` — changes are **session-scoped** and never touch your global config.
+
+| Variable | Purpose |
 |---|---|
-| `claude-pro` | Clears all override env vars so Claude Code uses your default Claude Pro subscription |
-| `claude-deepseek` | Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and model overrides to route Claude Code through the DeepSeek API |
+| `ANTHROPIC_BASE_URL` | Routes the API to an alternative provider endpoint |
+| `ANTHROPIC_AUTH_TOKEN` | API key for the provider |
+| `ANTHROPIC_MODEL` | Default model sent to the endpoint |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | Model used for Opus-tier tasks |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | Model used for Sonnet-tier tasks |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Model used for Haiku-tier tasks |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | Model used for sub-agent tasks |
+| `CLAUDE_CODE_EFFORT_LEVEL` | Effort level (`max` for most third-party providers) |
+| `API_TIMEOUT_MS` | Timeout in milliseconds |
 
-The variables that get toggled:
+`claude-pro` clears all of these so Claude Code falls back to your subscription defaults.
 
-```
-ANTHROPIC_BASE_URL
-ANTHROPIC_AUTH_TOKEN
-ANTHROPIC_API_KEY
-ANTHROPIC_MODEL
-ANTHROPIC_DEFAULT_OPUS_MODEL
-ANTHROPIC_DEFAULT_SONNET_MODEL
-ANTHROPIC_DEFAULT_HAIKU_MODEL
-CLAUDE_CODE_SUBAGENT_MODEL
-CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK
-CLAUDE_CODE_EFFORT_LEVEL
-API_TIMEOUT_MS
-```
+---
 
-These are **session-scoped** — closing the terminal resets everything. No global config is modified by running these commands.
+## Built-in providers
+
+| ID | Provider | Endpoint |
+|---|---|---|
+| `pro` | Claude Pro (subscription) | *(Anthropic default)* |
+| `deepseek` | DeepSeek | `api.deepseek.com/anthropic` |
+| `kimi` | Kimi K2 (Moonshot) | `api.moonshot.ai/anthropic` |
+| `glm` | GLM (Z.ai) | `api.z.ai/api/anthropic` |
+| `qwen` | Qwen (Alibaba) | `dashscope.aliyuncs.com/compatible-mode` |
+| `minimax` | MiniMax M2 | `api.minimax.chat/v1` |
+| `openrouter` | OpenRouter | `openrouter.ai/api/v1` |
+
+`pro` and `deepseek` are enabled by default. All others are disabled — enable them and add your API key via `claude-config`.
 
 ---
 
@@ -37,13 +65,18 @@ These are **session-scoped** — closing the terminal resets everything. No glob
 
 | File | Description |
 |---|---|
-| `claude-pro.cmd` | Sets Claude Code to use your Claude Pro subscription and launches `claude` |
-| `claude-deepseek.cmd` | Sets Claude Code to use the DeepSeek API and launches `claude` |
-| `ClaudeModelSwitchers.ps1` | Loaded by your PowerShell profile on startup — pre-loads `.env` into the session |
-| `install-switchers.ps1` | One-time installer: patches PowerShell profiles and adds folder to user `PATH` |
-| `uninstall-switchers.ps1` | Removes profile patches, removes folder from user `PATH`, and deletes `.env` |
-| `.env` | Your API key — **never committed**, lives only on your machine |
-| `.env.example` | Template showing what goes in `.env` |
+| `config.example.json` | Provider presets template — committed to git |
+| `config.json` | Your live config with API keys — **never committed** |
+| `ClaudeSwitch.Core.ps1` | Shared config/launch functions |
+| `ClaudeModelSwitchers.ps1` | Loaded by your PowerShell profile; registers all commands |
+| `claude-launch.ps1` | Non-interactive entry point used by CMD shims |
+| `claude-config.ps1` | Interactive config TUI |
+| `claude-config.cmd` / `claude-switch.cmd` | CMD entry shims |
+| `launchers/claude-<id>.cmd` | Per-provider CMD shims (generated, not committed) |
+| `install-switchers.ps1` | One-time installer |
+| `uninstall-switchers.ps1` | Removes all installation artifacts |
+| `.env` | Legacy API key file — still loaded for back-compat, never committed |
+| `.env.example` | Template for the legacy `.env` file |
 
 ---
 
@@ -51,137 +84,127 @@ These are **session-scoped** — closing the terminal resets everything. No glob
 
 ### Step 1 — Clone the repo
 
-```
+```powershell
 git clone https://github.com/IrvanKurniawan624/claude-switchers.git
 ```
 
-Place it anywhere on your system, for example:
+Place it anywhere on your system.
 
-```
-C:\Users\YourName\claude-switchers
-```
-
-### Step 2 — Add your DeepSeek API key
-
-Copy `.env.example` to `.env` in the same folder:
-
-```powershell
-Copy-Item ".env.example" ".env"
-```
-
-Then open `.env` and replace the placeholder with your real key:
-
-```
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
-```
-
-Get your API key from [platform.deepseek.com](https://platform.deepseek.com/).
-
-> `.env` is listed in `.gitignore` — it will **never** be committed or pushed to GitHub.
-
-### Step 3 — Run the installer
-
-Open PowerShell and run:
+### Step 2 — Run the installer
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "C:\path\to\claude-switchers\install-switchers.ps1"
 ```
 
-The installer does two things automatically:
-1. **Patches your PowerShell profiles** — adds a dot-source line so `claude-pro` and `claude-deepseek` are available in every new PowerShell window
-2. **Adds the folder to your user `PATH`** — so `claude-pro.cmd` and `claude-deepseek.cmd` work from Command Prompt too
+The installer:
+1. **Patches your PowerShell profiles** — dot-sources `ClaudeModelSwitchers.ps1` so all commands are available in every new session
+2. **Adds the folder (and `launchers\`) to user PATH** — so commands work from Command Prompt too
+3. **Creates `config.json`** from the example template
+4. **Migrates your DeepSeek key** from `.env` if you have one
+5. **Generates per-provider CMD shims** in `launchers\`
 
-Profiles patched:
+If you move the folder later, re-run the installer from the new location — it updates the path in both profiles automatically.
 
-| Profile file | Used by |
-|---|---|
-| `Documents\WindowsPowerShell\profile.ps1` | Windows PowerShell 5.x |
-| `Documents\PowerShell\profile.ps1` | PowerShell 7+ (pwsh) |
+> **Note:** The installer only patches profiles that already exist. If you have no profile, it will tell you the command to create one.
 
-The installer wraps its changes in a clearly marked block so it can update the path safely if you ever move the folder:
+### Step 3 — Set your API keys
 
 ```powershell
-# BEGIN Claude Code model switchers
-. "C:\path\to\claude-switchers\ClaudeModelSwitchers.ps1"
-# END Claude Code model switchers
+claude-config
 ```
 
-> **If you move the folder later**, just re-run the installer from the new location — it will replace the old path in both profiles automatically.
-
-> **Note:** The installer only patches profile files that already exist. If you have no profile yet, it will tell you the command to create one and ask you to re-run the installer.
-
-> **Upgrading from an earlier version?** Just re-run the installer — it will automatically clean up any profile files it previously created that are no longer needed.
+Select a provider by number → `k` to set API key → `q` to save and quit.
 
 ### Step 4 — Open a new terminal
 
-The profile changes take effect in any new PowerShell or Command Prompt window.
+Profile changes take effect in any new PowerShell or Command Prompt window.
 
 ---
 
-## Usage
+## Managing providers
 
-### PowerShell
+### Interactive menu
 
 ```powershell
-# Use Claude Pro (subscription)
-claude-pro
-
-# Use DeepSeek — reads DEEPSEEK_API_KEY from .env automatically
-claude-deepseek
-
-# Pass arguments through to claude
-claude-pro --resume
-claude-deepseek --dangerously-skip-permissions
+claude-config
 ```
 
-### Command Prompt
+```
+╔══════════════════════════════════════════╗
+║     Claude Code Provider Config          ║
+╚══════════════════════════════════════════╝
 
-```cmd
-:: Use Claude Pro
-claude-pro
+ #   Provider              Status      Key
+ --- -------------------- ---------- ----------
+ 1   Claude Pro            enabled    (subscription)
+ 2   DeepSeek              enabled    set
+ 3   Kimi (Moonshot K2)    disabled   NOT SET
+ 4   GLM (Z.ai)            disabled   NOT SET
+ 5   Qwen (Alibaba)        disabled   NOT SET
+ 6   MiniMax (M2)          disabled   NOT SET
+ 7   OpenRouter            disabled   NOT SET
 
-:: Use DeepSeek — reads DEEPSEEK_API_KEY from .env automatically
-claude-deepseek
+  [number]  manage provider
+  a         add custom provider
+  r         regenerate CMD launch commands
+  u         uninstall claude-switchers
+  q         save and quit
 ```
 
-No need to manually set `DEEPSEEK_API_KEY` each session — both scripts load it from `.env` on the fly if it isn't already set in your environment.
+Per-provider submenu: **toggle on/off**, **set/clear API key**, **edit base URL**, **edit model mapping**, **delete**.
+
+### Add a custom provider
+
+In `claude-config` → `a` — you'll be prompted for:
+- Short ID (becomes the `claude-<id>` command)
+- Display name
+- Base URL (Anthropic-compatible endpoint)
+- API key
+- Default model name
+
+The command is available immediately in the current PowerShell session and in new CMD windows after saving.
 
 ---
 
-## DeepSeek Model Mapping
+## Upgrading from v0.1.0
 
-When using `claude-deepseek`, all Claude Code model slots are mapped as follows:
+Re-run the installer from the repo folder:
 
-| Claude Code slot | DeepSeek model |
-|---|---|
-| Default / Opus | `deepseek-v4-pro` (with 1M context) |
-| Sonnet | `deepseek-v4-pro` |
-| Haiku | `deepseek-v4-flash` |
-| Subagent | `deepseek-v4-pro` |
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\path\to\claude-switchers\install-switchers.ps1"
+```
 
-Effort level is set to `max` and timeout to 600 seconds (10 minutes) to accommodate longer DeepSeek responses.
+It will:
+- Migrate your `DEEPSEEK_API_KEY` from `.env` into `config.json` automatically
+- Generate the new per-provider CMD shims
+- Update both PowerShell profiles
+
+The `claude-pro` and `claude-deepseek` commands continue to work exactly as before.
 
 ---
 
 ## Uninstallation
 
-To fully remove claude-switchers from your system, run:
+### Option A — via the config menu (recommended)
+
+```powershell
+claude-config
+```
+
+Then select `u` → type `uninstall` to confirm.
+
+### Option B — via the uninstall script
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "C:\path\to\claude-switchers\uninstall-switchers.ps1"
 ```
 
-The uninstaller does three things:
-1. **Removes the switchers block** from both PowerShell profiles (`WindowsPowerShell\profile.ps1` and `PowerShell\profile.ps1`)
-2. **Removes the folder from your user `PATH`** so the commands are no longer available in Command Prompt
-3. **Deletes your `.env` file** so your API key is cleaned up
-
-Open a new terminal after running it to confirm everything is gone. The repo folder itself is not deleted — remove it manually if you no longer need it.
+Both remove the profile patches, user PATH entries, `launchers\`, `config.json`, and `.env`. The repo folder itself is not deleted.
 
 ---
 
 ## Requirements
 
 - [Claude Code CLI](https://claude.ai/code) installed and on your `PATH`
-- A [DeepSeek API key](https://platform.deepseek.com/) (only needed for `claude-deepseek`)
 - Windows with PowerShell 5.x or PowerShell 7+
+- API keys for whichever third-party providers you enable

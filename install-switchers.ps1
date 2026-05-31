@@ -1,8 +1,9 @@
 $ErrorActionPreference = "Stop"
 
-$switcherDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$modulePath = Join-Path $switcherDir "ClaudeModelSwitchers.ps1"
-$documents = [Environment]::GetFolderPath("MyDocuments")
+$switcherDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$modulePath   = Join-Path $switcherDir "ClaudeModelSwitchers.ps1"
+$launchersDir = Join-Path $switcherDir "launchers"
+$documents    = [Environment]::GetFolderPath("MyDocuments")
 
 $profilePaths = @(
     (Join-Path $documents "WindowsPowerShell\profile.ps1"),
@@ -10,23 +11,25 @@ $profilePaths = @(
 )
 
 $blockStart = "# BEGIN Claude Code model switchers"
-$blockEnd = "# END Claude Code model switchers"
+$blockEnd   = "# END Claude Code model switchers"
 $profileBlock = @"
 $blockStart
 . "$modulePath"
 $blockEnd
 "@
 
+# ── 1. Patch PowerShell profiles ────────────────────────────────────────────
 foreach ($profilePath in $profilePaths) {
-    if (-not (Test-Path -LiteralPath $profilePath)) { continue }
+    if (-not (Test-Path -LiteralPath $profilePath)) {
+        Write-Host "No profile found at: $profilePath (skipping)"
+        continue
+    }
 
     $content = Get-Content -LiteralPath $profilePath -Raw
     $escapedStart = [regex]::Escape($blockStart)
-    $escapedEnd = [regex]::Escape($blockEnd)
-    $pattern = "(?s)$escapedStart.*?$escapedEnd"
+    $escapedEnd   = [regex]::Escape($blockEnd)
+    $pattern      = "(?s)$escapedStart.*?$escapedEnd"
 
-    # If the file contains only our block, it was created by a previous installer run.
-    # Remove it rather than leaving a script file that triggers execution policy errors.
     $stripped = [regex]::Replace($content, $pattern, "").Trim()
     if ($content -match $pattern -and [string]::IsNullOrWhiteSpace($stripped)) {
         Remove-Item -LiteralPath $profilePath -Force
@@ -46,7 +49,8 @@ foreach ($profilePath in $profilePaths) {
     Write-Host "Updated PowerShell profile: $profilePath"
 }
 
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+# ── 2. Add switcher folder to user PATH (for static .cmd shims) ─────────────
+$userPath  = [Environment]::GetEnvironmentVariable("Path", "User")
 $pathParts = @()
 if (-not [string]::IsNullOrWhiteSpace($userPath)) {
     $pathParts = $userPath -split ";" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -62,7 +66,32 @@ if (-not $alreadyInPath) {
     Write-Host "Already in user PATH: $switcherDir"
 }
 
-. $modulePath
+# ── 3. Add launchers\ to user PATH (for per-provider .cmd shims) ────────────
+$alreadyLaunchers = $pathParts | Where-Object { $_.TrimEnd("\") -ieq $launchersDir.TrimEnd("\") }
+if (-not $alreadyLaunchers) {
+    $userPath2 = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts2    = $userPath2 -split ";" | Where-Object { $_ }
+    $newPath2  = ($parts2 + $launchersDir) -join ";"
+    [Environment]::SetEnvironmentVariable("Path", $newPath2, "User")
+    $env:Path = ($env:Path + ";" + $launchersDir)
+    Write-Host "Added to user PATH: $launchersDir"
+} else {
+    Write-Host "Already in user PATH: $launchersDir"
+}
+
+# ── 4. Init config.json and migrate legacy .env ─────────────────────────────
+. $modulePath        # dot-source so core functions are available in this session
+Initialize-SwitcherConfig
+Write-Host "Config initialised."
+
+# ── 5. Generate per-provider CMD shims ──────────────────────────────────────
+Update-ClaudeLaunchers
+Write-Host "Launch commands generated in: $launchersDir"
+
 Write-Host ""
-Write-Host "Installed. Open a new PowerShell or Command Prompt window, then run claude-deepseek or claude-pro."
-Write-Host "For this PowerShell window, the functions are already loaded."
+Write-Host "Installed. Open a new PowerShell or Command Prompt window to use:"
+Write-Host "  claude-config              -- manage providers and API keys"
+Write-Host "  claude-switch <provider>   -- launch with a specific provider"
+Write-Host "  claude-pro                 -- Claude Pro subscription"
+Write-Host "  claude-deepseek            -- DeepSeek (if API key is set)"
+Write-Host "  claude-kimi                -- Kimi K2 (enable in claude-config first)"
