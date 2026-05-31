@@ -189,10 +189,16 @@ function Invoke-ClaudeProvider {
         return
     }
 
-    # Clear all managed vars first
+    # Clear fixed managed vars AND any extra vars set by the previous provider launch
+    $prevKeys = $env:CLAUDE_ACTIVE_ENV_KEYS
+    if (-not [string]::IsNullOrWhiteSpace($prevKeys)) {
+        $prevKeys -split ',' | ForEach-Object {
+            $k = $_.Trim()
+            if ($k) { [System.Environment]::SetEnvironmentVariable($k, $null, 'Process') }
+        }
+    }
     foreach ($v in $script:ManagedEnvVars) {
         [System.Environment]::SetEnvironmentVariable($v, $null, 'Process')
-        Set-Item "env:$v" -Value '' -ErrorAction SilentlyContinue
     }
 
     $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
@@ -200,16 +206,11 @@ function Invoke-ClaudeProvider {
     if ($provider.type -eq 'subscription') {
         Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan
     } else {
-        # Resolve API key: config.json → env var ${ID}_API_KEY → .env fallback
+        # Resolve API key: config.json → ${ID}_API_KEY env var → legacy DEEPSEEK_API_KEY (deepseek only)
         $apiKey = $provider.apiKey
         if ([string]::IsNullOrWhiteSpace($apiKey)) {
             $envVarName = ($provider.id.ToUpper() -replace '[^A-Z0-9]', '_') + '_API_KEY'
             $apiKey = [System.Environment]::GetEnvironmentVariable($envVarName)
-        }
-        if ([string]::IsNullOrWhiteSpace($apiKey)) {
-            # .env fallback (already loaded by Initialize-SwitcherConfig at profile load)
-            $envVarName = ($provider.id.ToUpper() -replace '[^A-Z0-9]', '_') + '_API_KEY'
-            $apiKey = $env:DEEPSEEK_API_KEY  # kept for back-compat on deepseek
         }
         if ([string]::IsNullOrWhiteSpace($apiKey) -and $provider.id -eq 'deepseek') {
             $apiKey = $env:DEEPSEEK_API_KEY
@@ -225,11 +226,17 @@ function Invoke-ClaudeProvider {
         $env:ANTHROPIC_AUTH_TOKEN = $apiKey
 
         # Apply extra env vars from provider config
+        $extraKeys = @()
         if ($provider.env) {
             $provider.env.PSObject.Properties | ForEach-Object {
                 [System.Environment]::SetEnvironmentVariable($_.Name, $_.Value, 'Process')
+                $extraKeys += $_.Name
             }
         }
+
+        # Record all keys set this launch so next switch can clean them up
+        $allKeys = ($script:ManagedEnvVars + $extraKeys) | Sort-Object -Unique
+        $env:CLAUDE_ACTIVE_ENV_KEYS = $allKeys -join ','
 
         $modelDisplay = if ($provider.env -and $provider.env.ANTHROPIC_MODEL) { $provider.env.ANTHROPIC_MODEL } else { '(default)' }
         Write-Host "Claude Code session set to $($provider.name): $modelDisplay" -ForegroundColor Cyan

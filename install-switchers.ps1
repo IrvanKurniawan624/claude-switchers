@@ -21,7 +21,9 @@ $blockEnd
 # ── 1. Patch PowerShell profiles ────────────────────────────────────────────
 foreach ($profilePath in $profilePaths) {
     if (-not (Test-Path -LiteralPath $profilePath)) {
-        Write-Host "No profile found at: $profilePath (skipping)"
+        Write-Host "No profile found at: $profilePath"
+        Write-Host "  To create it and re-run, paste this command:"
+        Write-Host "    New-Item -Path '$profilePath' -ItemType File -Force; powershell -ExecutionPolicy Bypass -File '$($MyInvocation.MyCommand.Path)'"
         continue
     }
 
@@ -32,8 +34,9 @@ foreach ($profilePath in $profilePaths) {
 
     $stripped = [regex]::Replace($content, $pattern, "").Trim()
     if ($content -match $pattern -and [string]::IsNullOrWhiteSpace($stripped)) {
-        Remove-Item -LiteralPath $profilePath -Force
-        Write-Host "Removed installer-created profile (no user content): $profilePath"
+        # Profile contains only our block — overwrite with updated block instead of deleting
+        Set-Content -LiteralPath $profilePath -Value $profileBlock -Encoding UTF8
+        Write-Host "Updated PowerShell profile: $profilePath"
         continue
     }
 

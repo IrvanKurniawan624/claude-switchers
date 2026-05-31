@@ -54,7 +54,10 @@ function Manage-Provider {
 
         } elseif ($chosen -like 'Set API key*') {
             Write-Host ''
-            $k = Read-Host "  Paste API key"
+            $secure = Read-Host "  Paste API key" -AsSecureString
+            $bstr   = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+            $k      = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
             if (-not [string]::IsNullOrWhiteSpace($k)) {
                 $p.apiKey = $k.Trim()
                 Write-Host "  Key saved." -ForegroundColor Green
