@@ -12,9 +12,9 @@ Initialize-SwitcherConfig
 
 function Write-Header {
     Clear-Host
-    Write-Host '╔══════════════════════════════════════════╗' -ForegroundColor Cyan
-    Write-Host '║     Claude Code Provider Config          ║' -ForegroundColor Cyan
-    Write-Host '╚══════════════════════════════════════════╝' -ForegroundColor Cyan
+    Write-Host '==========================================' -ForegroundColor Cyan
+    Write-Host '   Claude Code Provider Config' -ForegroundColor Cyan
+    Write-Host '==========================================' -ForegroundColor Cyan
     Write-Host ''
 }
 
