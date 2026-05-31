@@ -5,69 +5,7 @@
 . (Join-Path $PSScriptRoot 'ClaudeSwitch.Core.ps1')
 Initialize-SwitcherConfig
 
-# ---------------------------------------------------------------------------
-# Arrow-key menu engine
-# Returns selected index, or -1 if Escape pressed.
-# Pass '--' in Items to insert a visual separator (skipped during navigation).
-# ---------------------------------------------------------------------------
-function Invoke-Menu {
-    param(
-        [string[]]$Items,
-        [string]$Title = '',
-        [int]$Default = 0
-    )
-
-    $count = $Items.Count
-
-    # Start on first non-separator item
-    $idx = $Default
-    while ($idx -lt $count -and $Items[$idx] -eq '--') { $idx++ }
-
-    $startTop = [Console]::CursorTop
-    $firstDraw = $true
-    $W = [Math]::Max(60, [Console]::WindowWidth - 4)
-
-    while ($true) {
-        if (-not $firstDraw) {
-            [Console]::SetCursorPosition(0, $startTop)
-        }
-        $firstDraw = $false
-
-        if ($Title) {
-            Write-Host ("  $Title").PadRight($W) -ForegroundColor Cyan
-        }
-        Write-Host (''.PadRight($W)) # blank spacer
-
-        for ($i = 0; $i -lt $count; $i++) {
-            if ($Items[$i] -eq '--') {
-                Write-Host ("  " + ('-' * ($W - 4))).PadRight($W) -ForegroundColor DarkGray
-            } elseif ($i -eq $idx) {
-                Write-Host ("  > " + $Items[$i]).PadRight($W) -ForegroundColor White
-            } else {
-                Write-Host ("    " + $Items[$i]).PadRight($W) -ForegroundColor DarkGray
-            }
-        }
-
-        Write-Host (''.PadRight($W))
-        Write-Host ("  [up/down] move   [enter] select   [esc] back").PadRight($W) -ForegroundColor DarkGray
-
-        $key = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-        switch ($key.VirtualKeyCode) {
-            38 {  # Up
-                $n = $idx - 1
-                while ($n -ge 0 -and $Items[$n] -eq '--') { $n-- }
-                if ($n -ge 0) { $idx = $n }
-            }
-            40 {  # Down
-                $n = $idx + 1
-                while ($n -lt $count -and $Items[$n] -eq '--') { $n++ }
-                if ($n -lt $count) { $idx = $n }
-            }
-            13 { Write-Host ''; return $idx }   # Enter
-            27 { Write-Host ''; return -1 }     # Escape
-        }
-    }
-}
+# Invoke-Menu is defined in ClaudeSwitch.Core.ps1 (dot-sourced above).
 
 # Simple Yes/No confirmation using arrow keys.
 function Confirm-Action {
@@ -120,10 +58,19 @@ function Manage-Provider {
             if (-not [string]::IsNullOrWhiteSpace($k)) {
                 $p.apiKey = $k.Trim()
                 Write-Host "  Key saved." -ForegroundColor Green
+                Write-Host ''
+                $testSel = Invoke-Menu -Items @('Skip test', 'Test key now') -Default 1
+                if ($testSel -eq 1) {
+                    $ok = Test-ProviderKey -BaseUrl $p.baseUrl -ApiKey $p.apiKey
+                    if (-not $ok) {
+                        Write-Host '  Key saved anyway — fix it here if needed.' -ForegroundColor DarkGray
+                    }
+                    Start-Sleep 2
+                }
             } else {
                 Write-Host "  No change." -ForegroundColor DarkGray
+                Start-Sleep 1
             }
-            Start-Sleep 1
 
         } elseif ($chosen -eq 'Clear API key') {
             if (Confirm-Action "Clear the API key for '$($p.name)'?") {

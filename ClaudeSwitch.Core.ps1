@@ -23,6 +23,89 @@ $script:ManagedEnvVars = @(
 )
 
 # ---------------------------------------------------------------------------
+# Arrow-key menu engine (shared by claude-config and claude-switch)
+# Returns selected index, or -1 on Escape. Pass '--' for visual separators.
+# ---------------------------------------------------------------------------
+function Invoke-Menu {
+    param(
+        [string[]]$Items,
+        [string]$Title = '',
+        [int]$Default = 0
+    )
+    $count = $Items.Count
+    $idx   = $Default
+    while ($idx -lt $count -and $Items[$idx] -eq '--') { $idx++ }
+
+    $startTop = [Console]::CursorTop
+    $firstDraw = $true
+    $W = [Math]::Max(60, [Console]::WindowWidth - 4)
+
+    while ($true) {
+        if (-not $firstDraw) { [Console]::SetCursorPosition(0, $startTop) }
+        $firstDraw = $false
+
+        if ($Title) { Write-Host ("  $Title").PadRight($W) -ForegroundColor Cyan }
+        Write-Host (''.PadRight($W))
+
+        for ($i = 0; $i -lt $count; $i++) {
+            if ($Items[$i] -eq '--') {
+                Write-Host ("  " + ('-' * ($W - 4))).PadRight($W) -ForegroundColor DarkGray
+            } elseif ($i -eq $idx) {
+                Write-Host ("  > " + $Items[$i]).PadRight($W) -ForegroundColor White
+            } else {
+                Write-Host ("    " + $Items[$i]).PadRight($W) -ForegroundColor DarkGray
+            }
+        }
+        Write-Host (''.PadRight($W))
+        Write-Host ("  [up/down] move   [enter] select   [esc] back").PadRight($W) -ForegroundColor DarkGray
+
+        $key = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        switch ($key.VirtualKeyCode) {
+            38 { $n = $idx - 1; while ($n -ge 0 -and $Items[$n] -eq '--') { $n-- }; if ($n -ge 0) { $idx = $n } }
+            40 { $n = $idx + 1; while ($n -lt $count -and $Items[$n] -eq '--') { $n++ }; if ($n -lt $count) { $idx = $n } }
+            13 { Write-Host ''; return $idx }
+            27 { Write-Host ''; return -1 }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# API key validation
+# ---------------------------------------------------------------------------
+function Test-ProviderKey {
+    param(
+        [Parameter(Mandatory)][string]$BaseUrl,
+        [Parameter(Mandatory)][string]$ApiKey
+    )
+    Write-Host '  Testing connection...' -ForegroundColor DarkGray -NoNewline
+    try {
+        $headers = @{
+            'Authorization'     = "Bearer $ApiKey"
+            'x-api-key'         = $ApiKey
+            'anthropic-version' = '2023-06-01'
+        }
+        $resp = Invoke-WebRequest -Uri "$BaseUrl/v1/models" -Headers $headers `
+            -Method GET -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+        Write-Host " OK ($($resp.StatusCode))" -ForegroundColor Green
+        return $true
+    } catch {
+        $code = $null
+        if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+        if ($code -eq 401 -or $code -eq 403) {
+            Write-Host " invalid key (HTTP $code)" -ForegroundColor Red
+            return $false
+        } elseif ($code) {
+            # Server responded but endpoint may not support /models — key likely fine
+            Write-Host " reachable, key untested (HTTP $code)" -ForegroundColor Yellow
+            return $true
+        } else {
+            Write-Host " could not connect: $($_.Exception.Message)" -ForegroundColor Red
+            return $false
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Config read / write
 # ---------------------------------------------------------------------------
 
@@ -111,6 +194,8 @@ function Invoke-ClaudeProvider {
         [System.Environment]::SetEnvironmentVariable($v, $null, 'Process')
         Set-Item "env:$v" -Value '' -ErrorAction SilentlyContinue
     }
+
+    $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
 
     if ($provider.type -eq 'subscription') {
         Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan

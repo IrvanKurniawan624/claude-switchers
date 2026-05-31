@@ -1,17 +1,40 @@
 # ClaudeModelSwitchers.ps1
 # Loaded by your PowerShell profile on startup.
-# Dot-sources the core library, migrates legacy .env, and registers:
-#   claude-switch  — pick or launch any provider
-#   claude-config  — open the interactive config TUI
-#   claude-<id>    — one function per enabled provider (auto-generated)
+# Registers: claude-config, claude-switch, claude-status, claude-<id> per provider.
 
 . (Join-Path $PSScriptRoot 'ClaudeSwitch.Core.ps1')
 Initialize-SwitcherConfig
 
 function claude-config {
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'claude-config.ps1')
-    # Reload dynamic provider functions after config may have changed
+    # Run inline (same process/terminal — no subprocess window)
+    & (Join-Path $PSScriptRoot 'claude-config.ps1')
+    # Reload so any newly enabled providers get their functions registered
     . (Join-Path $PSScriptRoot 'ClaudeModelSwitchers.ps1')
+}
+
+function claude-status {
+    $active = $env:CLAUDE_ACTIVE_PROVIDER
+    if ([string]::IsNullOrWhiteSpace($active)) {
+        Write-Host ''
+        Write-Host '  No provider active in this session.' -ForegroundColor DarkGray
+        Write-Host '  Run claude-pro, claude-deepseek, etc. to set one.' -ForegroundColor DarkGray
+        Write-Host ''
+        return
+    }
+    $config = Get-SwitcherConfig
+    $p      = if ($config) { $config.providers | Where-Object { $_.id -eq $active } } else { $null }
+    $name   = if ($p) { $p.name } else { $active }
+    Write-Host ''
+    Write-Host "  Active : $name" -ForegroundColor Cyan
+    if ($env:ANTHROPIC_BASE_URL) {
+        Write-Host "  URL    : $env:ANTHROPIC_BASE_URL" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  URL    : (Anthropic default)" -ForegroundColor DarkGray
+    }
+    if ($env:ANTHROPIC_MODEL) {
+        Write-Host "  Model  : $env:ANTHROPIC_MODEL" -ForegroundColor DarkGray
+    }
+    Write-Host ''
 }
 
 function claude-switch {
@@ -28,42 +51,31 @@ function claude-switch {
         return
     }
 
-    # Interactive picker when no ID supplied
     $enabled = @($config.providers | Where-Object { $_.enabled })
     if ($enabled.Count -eq 0) {
-        Write-Host "No enabled providers. Run claude-config to enable one." -ForegroundColor Yellow
+        Write-Host 'No enabled providers. Run claude-config to enable one.' -ForegroundColor Yellow
         return
     }
 
     Write-Host ''
-    Write-Host '=== Select a provider ===' -ForegroundColor Cyan
-    for ($i = 0; $i -lt $enabled.Count; $i++) {
-        Write-Host ("  {0}  {1}" -f ($i + 1), $enabled[$i].name)
-    }
-    Write-Host ''
-    $pick = Read-Host "Number"
-    if ($pick -match '^\d+$') {
-        $idx = [int]$pick - 1
-        if ($idx -ge 0 -and $idx -lt $enabled.Count) {
-            Invoke-ClaudeProvider -Id $enabled[$idx].id -Rest $Rest
-        } else {
-            Write-Host "Invalid selection." -ForegroundColor Yellow
-        }
+    $sel = Invoke-Menu -Items ($enabled | ForEach-Object { $_.name }) -Title 'Select a provider'
+    if ($sel -ge 0) {
+        Invoke-ClaudeProvider -Id $enabled[$sel].id -Rest $Rest
     }
 }
 
-# Dynamically create claude-<id> functions for every enabled provider
+# Dynamically register claude-<id> for every enabled provider
 $__config = Get-SwitcherConfig
 if ($__config) {
     foreach ($__p in $__config.providers) {
         if (-not $__p.enabled) { continue }
         $__id = $__p.id
-        $__funcName = "claude-$__id"
-        $__funcBody = [scriptblock]::Create("
-            param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest)
-            Invoke-ClaudeProvider -Id '$__id' -Rest `$Rest
-        ")
-        Set-Item "function:global:$__funcName" -Value $__funcBody
+        Set-Item "function:global:claude-$__id" -Value (
+            [scriptblock]::Create("
+                param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest)
+                Invoke-ClaudeProvider -Id '$__id' -Rest `$Rest
+            ")
+        )
     }
 }
-Remove-Variable __config, __p, __id, __funcName, __funcBody -ErrorAction SilentlyContinue
+Remove-Variable __config, __p, __id -ErrorAction SilentlyContinue

@@ -12,6 +12,7 @@ claude-deepseek      # DeepSeek API
 claude-kimi          # Kimi K2 (Moonshot)
 claude-glm           # GLM (Z.ai)
 claude-switch        # interactive picker — choose from all enabled providers
+claude-status        # show which provider is active in this session
 claude-config        # manage providers, API keys, add custom endpoints
 ```
 
@@ -74,7 +75,6 @@ Claude Code reads model identity and API routing from environment variables. Thi
 | `claude-config.cmd` / `claude-switch.cmd` | CMD entry shims |
 | `launchers/claude-<id>.cmd` | Per-provider CMD shims (generated, not committed) |
 | `install-switchers.ps1` | One-time installer |
-| `uninstall-switchers.ps1` | Removes all installation artifacts |
 | `.env` | Legacy API key file — still loaded for back-compat, never committed |
 | `.env.example` | Template for the legacy `.env` file |
 
@@ -185,21 +185,11 @@ The `claude-pro` and `claude-deepseek` commands continue to work exactly as befo
 
 ## Uninstallation
 
-### Option A — via the config menu (recommended)
-
 ```powershell
 claude-config
 ```
 
-Then select `u` → type `uninstall` to confirm.
-
-### Option B — via the uninstall script
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "C:\path\to\claude-switchers\uninstall-switchers.ps1"
-```
-
-Both remove the profile patches, user PATH entries, `launchers\`, `config.json`, and `.env`. The repo folder itself is not deleted.
+Navigate to **Uninstall** and confirm. This removes the profile patches, user PATH entries, `launchers\`, `config.json`, and `.env`. The repo folder itself is not deleted.
 
 ---
 
