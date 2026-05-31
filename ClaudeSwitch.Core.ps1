@@ -121,12 +121,26 @@ function Test-ProviderKey {
 # ---------------------------------------------------------------------------
 
 function Get-SwitcherConfig {
-    $configPath = Join-Path $script:SwitcherDir 'config.json'
-    $examplePath = Join-Path $script:SwitcherDir 'config.example.json'
+    $configPath   = Join-Path $script:SwitcherDir 'config.json'
+    $examplePath  = Join-Path $script:SwitcherDir 'config.example.json'
 
     if (-not (Test-Path $configPath)) {
         if (Test-Path $examplePath) {
             Copy-Item $examplePath $configPath
+            # Restrict config.json to the current user — prevents other local accounts
+            # from reading API keys stored in plain text
+            try {
+                $acl = New-Object System.Security.AccessControl.FileSecurity
+                $acl.SetAccessRuleProtection($true, $false)
+                $me   = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $me, 'FullControl', 'Allow'
+                )
+                $acl.SetAccessRule($rule)
+                Set-Acl -Path $configPath -AclObject $acl
+            } catch {
+                # ACL restriction failed (non-fatal); config.json may be readable by local users
+            }
         } else {
             Write-Warning "config.example.json not found in $script:SwitcherDir"
             return $null
@@ -193,14 +207,17 @@ function Initialize-SwitcherConfig {
         }
     }
 
-    # Migrate DEEPSEEK_API_KEY from .env into deepseek provider entry
-    $legacyKey = $env:DEEPSEEK_API_KEY
-    if ($legacyKey) {
-        $deepseek = $config.providers | Where-Object { $_.id -eq 'deepseek' }
-        if ($deepseek -and [string]::IsNullOrWhiteSpace($deepseek.apiKey)) {
-            $deepseek.apiKey = $legacyKey
-            Save-SwitcherConfig $config
+    # Migrate DEEPSEEK_API_KEY from .env — runs exactly once, guarded by _migrated flag
+    if (-not $config._migrated) {
+        $legacyKey = $env:DEEPSEEK_API_KEY
+        if ($legacyKey) {
+            $deepseek = $config.providers | Where-Object { $_.id -eq 'deepseek' }
+            if ($deepseek -and [string]::IsNullOrWhiteSpace($deepseek.apiKey)) {
+                $deepseek.apiKey = $legacyKey
+            }
         }
+        $config | Add-Member -MemberType NoteProperty -Name '_migrated' -Value $true -Force
+        Save-SwitcherConfig $config
     }
 
     # Fix stale preset URLs from older installs
@@ -230,27 +247,10 @@ function Invoke-ClaudeProvider {
         return
     }
 
-    # Clear fixed managed vars AND any extra vars set by the previous provider launch
-    $prevKeys = $env:CLAUDE_ACTIVE_ENV_KEYS
-    if (-not [string]::IsNullOrWhiteSpace($prevKeys)) {
-        $prevKeys -split ',' | ForEach-Object {
-            $k = $_.Trim()
-            if ($k) { [System.Environment]::SetEnvironmentVariable($k, $null, 'Process') }
-        }
-    }
-    foreach ($v in $script:ManagedEnvVars) {
-        # ANTHROPIC_API_KEY must be empty string (not absent) so providers like OpenRouter
-        # that check for its presence don't fall back to stale Anthropic credentials
-        $clearVal = if ($v -eq 'ANTHROPIC_API_KEY') { '' } else { $null }
-        [System.Environment]::SetEnvironmentVariable($v, $clearVal, 'Process')
-    }
-
-    if ($provider.type -eq 'subscription') {
-        $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
-        $env:CLAUDE_ACTIVE_ENV_KEYS = ($script:ManagedEnvVars -join ',')
-        Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan
-    } else {
-        # Resolve API key: config.json → ${ID}_API_KEY env var → legacy DEEPSEEK_API_KEY (deepseek only)
+    # Resolve API key BEFORE touching any env vars so a failed launch
+    # never corrupts the previous provider's session state
+    $apiKey = $null
+    if ($provider.type -ne 'subscription') {
         $apiKey = $provider.apiKey
         if ([string]::IsNullOrWhiteSpace($apiKey)) {
             $envVarName = ($provider.id.ToUpper() -replace '[^A-Z0-9]', '_') + '_API_KEY'
@@ -259,20 +259,36 @@ function Invoke-ClaudeProvider {
         if ([string]::IsNullOrWhiteSpace($apiKey) -and $provider.id -eq 'deepseek') {
             $apiKey = $env:DEEPSEEK_API_KEY
         }
-
         if ([string]::IsNullOrWhiteSpace($apiKey)) {
             Write-Host "No API key set for '$($provider.name)'." -ForegroundColor Yellow
             Write-Host "Run claude-config to set your key, or set `$env:$($provider.id.ToUpper())_API_KEY for this session." -ForegroundColor Yellow
-            return
+            return  # Previous provider state is untouched
         }
+    }
 
-        # Key resolved — safe to record active provider now
-        $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
+    # Validation passed — now clear previous provider's vars
+    $prevKeys = $env:CLAUDE_ACTIVE_ENV_KEYS
+    if (-not [string]::IsNullOrWhiteSpace($prevKeys)) {
+        $prevKeys -split ',' | ForEach-Object {
+            $k = $_.Trim()
+            if ($k) { [System.Environment]::SetEnvironmentVariable($k, $null, 'Process') }
+        }
+    }
+    foreach ($v in $script:ManagedEnvVars) {
+        # Note: Windows removes env vars set to empty string — ANTHROPIC_API_KEY will be
+        # absent rather than blank, which is functionally equivalent for Claude Code routing
+        [System.Environment]::SetEnvironmentVariable($v, $null, 'Process')
+    }
 
-        $env:ANTHROPIC_BASE_URL = $provider.baseUrl
-        $env:ANTHROPIC_AUTH_TOKEN = $apiKey
+    $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
 
-        # Apply extra env vars from provider config
+    if ($provider.type -eq 'subscription') {
+        $env:CLAUDE_ACTIVE_ENV_KEYS = ($script:ManagedEnvVars -join ',')
+        Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan
+    } else {
+        $env:ANTHROPIC_BASE_URL    = $provider.baseUrl
+        $env:ANTHROPIC_AUTH_TOKEN  = $apiKey
+
         $extraKeys = @()
         if ($provider.env) {
             $provider.env.PSObject.Properties | ForEach-Object {
@@ -281,7 +297,6 @@ function Invoke-ClaudeProvider {
             }
         }
 
-        # Record all keys set this launch so next switch can clean them up
         $allKeys = ($script:ManagedEnvVars + $extraKeys) | Sort-Object -Unique
         $env:CLAUDE_ACTIVE_ENV_KEYS = $allKeys -join ','
 

@@ -5,22 +5,27 @@
 . (Join-Path $PSScriptRoot 'ClaudeSwitch.Core.ps1')
 Initialize-SwitcherConfig
 
+# Tracks which provider IDs have a registered claude-<id> function this session
+# so deletions and disables can be cleaned up correctly on reload
+$script:RegisteredProviderIds = @()
+
 function claude-config {
-    # Run inline (same process/terminal — no subprocess window)
     & (Join-Path $PSScriptRoot 'claude-config.ps1')
-    # Re-register only provider functions for newly enabled providers.
-    # Do NOT dot-source the whole file — that would re-run Initialize-SwitcherConfig
-    # and the .env migration on every config exit.
+    # Re-sync provider functions: remove stale ones, register/update enabled ones
     $__rl = Get-SwitcherConfig
+    # Remove every previously registered function first (handles deletions + disables)
+    foreach ($__staleId in $script:RegisteredProviderIds) {
+        Remove-Item "Function:\claude-$__staleId" -ErrorAction SilentlyContinue
+    }
+    $script:RegisteredProviderIds = @()
     if ($__rl) {
         foreach ($__rlp in $__rl.providers) {
-            $__rli = $__rlp.id
             if ($__rlp.enabled) {
+                $__rli = $__rlp.id
                 Set-Item "function:global:claude-$__rli" -Value (
                     [scriptblock]::Create("param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest); Invoke-ClaudeProvider -Id '$__rli' -Rest `$Rest")
                 )
-            } else {
-                Remove-Item "function:global:claude-$__rli" -ErrorAction SilentlyContinue
+                $script:RegisteredProviderIds += $__rli
             }
         }
     }
@@ -91,8 +96,9 @@ if ($__config) {
                     Invoke-ClaudeProvider -Id '$__id' -Rest `$Rest
                 ")
             )
+            $script:RegisteredProviderIds += $__id
         } else {
-            Remove-Item "function:global:claude-$__id" -ErrorAction SilentlyContinue
+            Remove-Item "Function:\claude-$__id" -ErrorAction SilentlyContinue
         }
     }
 }
