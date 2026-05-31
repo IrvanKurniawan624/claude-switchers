@@ -351,10 +351,10 @@ while ($true) {
     }
 
     $menuItems   += '--'
-    $addIdx       = $menuItems.Count; $menuItems += '+ Add custom provider'
-    $regenIdx     = $menuItems.Count; $menuItems += 'r  Regenerate CMD commands'
-    $uninstallIdx = $menuItems.Count; $menuItems += 'u  Uninstall'
-    $quitIdx      = $menuItems.Count; $menuItems += 'q  Save & quit'
+    $addIdx       = $menuItems.Count; $menuItems += 'Add custom provider'
+    $regenIdx     = $menuItems.Count; $menuItems += 'Regenerate CMD commands'
+    $uninstallIdx = $menuItems.Count; $menuItems += 'Uninstall'
+    $quitIdx      = $menuItems.Count; $menuItems += 'Save & quit'
 
     $sel = Invoke-Menu -Items $menuItems
 

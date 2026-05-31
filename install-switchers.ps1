@@ -89,9 +89,16 @@ Update-ClaudeLaunchers
 Write-Host "Launch commands generated in: $launchersDir"
 
 Write-Host ""
-Write-Host "Installed. Open a new PowerShell or Command Prompt window to use:"
-Write-Host "  claude-config              -- manage providers and API keys"
-Write-Host "  claude-switch <provider>   -- launch with a specific provider"
-Write-Host "  claude-pro                 -- Claude Pro subscription"
-Write-Host "  claude-deepseek            -- DeepSeek (if API key is set)"
-Write-Host "  claude-kimi                -- Kimi K2 (enable in claude-config first)"
+Write-Host "=========================================="  -ForegroundColor Green
+Write-Host "  Installation complete!"                    -ForegroundColor Green
+Write-Host "=========================================="  -ForegroundColor Green
+Write-Host ""
+Write-Host "  IMPORTANT: Open a NEW terminal window"    -ForegroundColor Yellow
+Write-Host "  for the commands to become available."    -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Then run:"                                -ForegroundColor Cyan
+Write-Host "    claude-config    -- manage providers and API keys"
+Write-Host "    claude-pro       -- launch with Claude Pro subscription"
+Write-Host "    claude-deepseek  -- launch with DeepSeek"
+Write-Host "    claude-switch    -- pick a provider interactively"
+Write-Host ""
