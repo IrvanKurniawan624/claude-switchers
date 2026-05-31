@@ -178,7 +178,10 @@ function Add-CustomProvider {
     $url     = (Read-Host "  Base URL  (Anthropic-compatible endpoint)").Trim()
     if ([string]::IsNullOrWhiteSpace($url)) { Write-Host "  Cancelled."; Start-Sleep 1; return }
 
-    $apiKey  = (Read-Host "  API key  (leave blank to set later)").Trim()
+    $secure  = Read-Host "  API key  (leave blank to set later)" -AsSecureString
+    $bstr    = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    $apiKey  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr).Trim()
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     $model   = (Read-Host "  Default model name  (leave blank to skip)").Trim()
 
     $envObj = [PSCustomObject]@{

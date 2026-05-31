@@ -68,7 +68,7 @@
       "name": "Qwen (Alibaba)",
       "type": "api",
       "enabled": false,
-      "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+      "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic",
       "apiKey": "",
       "env": {
         "ANTHROPIC_MODEL": "qwen3-235b-a22b",

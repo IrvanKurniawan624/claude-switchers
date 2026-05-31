@@ -149,6 +149,29 @@ function Save-SwitcherConfig {
 }
 
 # ---------------------------------------------------------------------------
+# Preset URL migration — fixes stale baseUrls in existing config.json
+# ---------------------------------------------------------------------------
+
+$script:PresetUrlMigrations = @{
+    'qwen'       = @{ from = @('https://dashscope.aliyuncs.com/compatible-mode','https://dashscope-intl.aliyuncs.com/compatible-mode/v1'); to = 'https://dashscope-intl.aliyuncs.com/apps/anthropic' }
+    'minimax'    = @{ from = @('https://api.minimax.chat/v1');                                                                               to = 'https://api.minimax.io/anthropic' }
+    'openrouter' = @{ from = @('https://openrouter.ai/api/v1');                                                                              to = 'https://openrouter.ai/api' }
+}
+
+function Update-ProviderPresets {
+    param([object]$Config)
+    $changed = $false
+    foreach ($p in $Config.providers) {
+        $fix = $script:PresetUrlMigrations[$p.id]
+        if ($fix -and $p.baseUrl -in $fix.from) {
+            $p.baseUrl = $fix.to
+            $changed = $true
+        }
+    }
+    if ($changed) { Save-SwitcherConfig $Config }
+}
+
+# ---------------------------------------------------------------------------
 # Migration from legacy .env
 # ---------------------------------------------------------------------------
 
@@ -179,6 +202,9 @@ function Initialize-SwitcherConfig {
             Save-SwitcherConfig $config
         }
     }
+
+    # Fix stale preset URLs from older installs
+    Update-ProviderPresets $config
 }
 
 # ---------------------------------------------------------------------------
@@ -199,6 +225,10 @@ function Invoke-ClaudeProvider {
         Write-Error "Unknown provider '$Id'. Run claude-config to see available providers."
         return
     }
+    if (-not $provider.enabled) {
+        Write-Host "'$($provider.name)' is disabled. Enable it in claude-config first." -ForegroundColor Yellow
+        return
+    }
 
     # Clear fixed managed vars AND any extra vars set by the previous provider launch
     $prevKeys = $env:CLAUDE_ACTIVE_ENV_KEYS
@@ -209,13 +239,14 @@ function Invoke-ClaudeProvider {
         }
     }
     foreach ($v in $script:ManagedEnvVars) {
-        [System.Environment]::SetEnvironmentVariable($v, $null, 'Process')
+        # ANTHROPIC_API_KEY must be empty string (not absent) so providers like OpenRouter
+        # that check for its presence don't fall back to stale Anthropic credentials
+        $clearVal = if ($v -eq 'ANTHROPIC_API_KEY') { '' } else { $null }
+        [System.Environment]::SetEnvironmentVariable($v, $clearVal, 'Process')
     }
 
-    $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
-
     if ($provider.type -eq 'subscription') {
-        # Record managed vars so the next provider launch clears them correctly
+        $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
         $env:CLAUDE_ACTIVE_ENV_KEYS = ($script:ManagedEnvVars -join ',')
         Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan
     } else {
@@ -234,6 +265,9 @@ function Invoke-ClaudeProvider {
             Write-Host "Run claude-config to set your key, or set `$env:$($provider.id.ToUpper())_API_KEY for this session." -ForegroundColor Yellow
             return
         }
+
+        # Key resolved — safe to record active provider now
+        $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
 
         $env:ANTHROPIC_BASE_URL = $provider.baseUrl
         $env:ANTHROPIC_AUTH_TOKEN = $apiKey

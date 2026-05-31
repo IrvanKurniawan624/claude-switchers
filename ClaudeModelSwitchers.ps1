@@ -14,11 +14,14 @@ function claude-config {
     $__rl = Get-SwitcherConfig
     if ($__rl) {
         foreach ($__rlp in $__rl.providers) {
-            if (-not $__rlp.enabled) { continue }
             $__rli = $__rlp.id
-            Set-Item "function:global:claude-$__rli" -Value (
-                [scriptblock]::Create("param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest); Invoke-ClaudeProvider -Id '$__rli' -Rest `$Rest")
-            )
+            if ($__rlp.enabled) {
+                Set-Item "function:global:claude-$__rli" -Value (
+                    [scriptblock]::Create("param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest); Invoke-ClaudeProvider -Id '$__rli' -Rest `$Rest")
+                )
+            } else {
+                Remove-Item "function:global:claude-$__rli" -ErrorAction SilentlyContinue
+            }
         }
     }
     Remove-Variable __rl, __rlp, __rli -ErrorAction SilentlyContinue
@@ -76,18 +79,21 @@ function claude-switch {
     }
 }
 
-# Dynamically register claude-<id> for every enabled provider
+# Register claude-<id> for enabled providers; remove it for disabled ones
 $__config = Get-SwitcherConfig
 if ($__config) {
     foreach ($__p in $__config.providers) {
-        if (-not $__p.enabled) { continue }
         $__id = $__p.id
-        Set-Item "function:global:claude-$__id" -Value (
-            [scriptblock]::Create("
-                param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest)
-                Invoke-ClaudeProvider -Id '$__id' -Rest `$Rest
-            ")
-        )
+        if ($__p.enabled) {
+            Set-Item "function:global:claude-$__id" -Value (
+                [scriptblock]::Create("
+                    param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest)
+                    Invoke-ClaudeProvider -Id '$__id' -Rest `$Rest
+                ")
+            )
+        } else {
+            Remove-Item "function:global:claude-$__id" -ErrorAction SilentlyContinue
+        }
     }
 }
 Remove-Variable __config, __p, __id -ErrorAction SilentlyContinue

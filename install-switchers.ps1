@@ -32,6 +32,27 @@ foreach ($profilePath in $profilePaths) {
     $escapedEnd   = [regex]::Escape($blockEnd)
     $pattern      = "(?s)$escapedStart.*?$escapedEnd"
 
+    # If the block exists and points to a different directory, clean up the old PATH entries
+    if ($content -match $pattern) {
+        if ($content -match '\.\s+"(.+?)\\ClaudeModelSwitchers\.ps1"') {
+            $oldDir = $Matches[1]
+            if ($oldDir -ine $switcherDir) {
+                $oldLaunchers = Join-Path $oldDir 'launchers'
+                $stalePath = [Environment]::GetEnvironmentVariable('Path', 'User')
+                if ($stalePath) {
+                    $cleanParts = ($stalePath -split ';') | Where-Object {
+                        $_.TrimEnd('\') -ine $oldDir.TrimEnd('\') -and
+                        $_.TrimEnd('\') -ine $oldLaunchers.TrimEnd('\')
+                    }
+                    if ($cleanParts.Count -lt ($stalePath -split ';').Count) {
+                        [Environment]::SetEnvironmentVariable('Path', ($cleanParts -join ';'), 'User')
+                        Write-Host "Removed stale PATH entries for old location: $oldDir"
+                    }
+                }
+            }
+        }
+    }
+
     $stripped = [regex]::Replace($content, $pattern, "").Trim()
     if ($content -match $pattern -and [string]::IsNullOrWhiteSpace($stripped)) {
         # Profile contains only our block — overwrite with updated block instead of deleting
