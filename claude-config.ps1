@@ -116,7 +116,8 @@ function Edit-EnvMapping {
     Clear-Host
     Write-Host ''
     Write-Host "  Env overrides for $($Provider.name)" -ForegroundColor Cyan
-    Write-Host "  Enter KEY=VALUE to set, KEY= to clear, blank line to finish." -ForegroundColor Gray
+    Write-Host "  Enter KEY=VALUE to set, KEY= to clear an override." -ForegroundColor Gray
+    Write-Host "  Type 'back' to finish." -ForegroundColor Gray
     Write-Host ''
 
     if ($Provider.env) {
@@ -128,7 +129,11 @@ function Edit-EnvMapping {
 
     while ($true) {
         $line = Read-Host "  env"
-        if ([string]::IsNullOrWhiteSpace($line)) { break }
+        if ($line.Trim().ToLower() -eq 'back') { break }
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            Write-Host "  (type 'back' to finish)" -ForegroundColor DarkGray
+            continue
+        }
         if ($line -match '^([A-Z0-9_]+)=(.*)$') {
             $k = $Matches[1]; $v = $Matches[2]
             if (-not $Provider.env) {
