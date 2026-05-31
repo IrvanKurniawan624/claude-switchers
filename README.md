@@ -56,11 +56,13 @@ Claude Code reads model identity and API routing from environment variables. Thi
 | `deepseek` | DeepSeek | `api.deepseek.com/anthropic` | enabled |
 | `kimi` | Kimi K2 (Moonshot) | `api.moonshot.ai/anthropic` | disabled |
 | `glm` | GLM (Z.ai) | `api.z.ai/api/anthropic` | disabled |
-| `qwen` | Qwen (Alibaba) | `dashscope.aliyuncs.com/compatible-mode` | disabled |
-| `minimax` | MiniMax M2 | `api.minimax.chat/v1` | disabled |
-| `openrouter` | OpenRouter | `openrouter.ai/api/v1` | disabled |
+| `qwen` | Qwen (Alibaba) | `dashscope-intl.aliyuncs.com/apps/anthropic` | disabled |
+| `minimax` | MiniMax M2 | `api.minimax.io/anthropic` | disabled |
+| `openrouter` | OpenRouter | `openrouter.ai/api` | disabled |
 
 Enable any provider and set its API key via `claude-config`.
+
+> If you have an older `config.json` with stale endpoints, they are updated automatically the next time any command loads the config — your keys and custom providers are not touched.
 
 ---
 
@@ -106,7 +108,7 @@ The installer:
 4. **Migrates your DeepSeek key** from `.env` if you have one
 5. **Generates per-provider CMD shims** in `launchers\`
 
-If you move the folder later, re-run the installer from the new location — it updates the path in both profiles automatically.
+If you move the folder later, re-run the installer from the new location — it updates both profiles and **removes the old PATH entries** automatically.
 
 > **Note:** The installer only patches profiles that already exist. If you have no profile, it will tell you the command to create one.
 
@@ -155,6 +157,8 @@ claude-config
 
 Use **arrow keys** to navigate, **Enter** to select. Selecting a provider opens its submenu where you can toggle it on/off, set or clear its API key, edit the base URL, or edit the model/env mapping.
 
+> **Disabled providers cannot be launched** — calling `claude-kimi` while Kimi is disabled shows a clear message instead of silently failing. Disabling a provider also immediately removes its `claude-<id>` command from your PowerShell session.
+
 ### Provider submenu
 
 ```
@@ -194,6 +198,20 @@ After setting a key you'll be asked whether to test it. The test hits the provid
 - `could not connect` — wrong base URL or no internet
 
 The key is saved regardless so you can correct it later.
+
+### Editing model / env overrides
+
+Inside a provider's submenu, **Edit model / env overrides** opens a line editor:
+
+```
+  Enter KEY=VALUE to set, KEY= to clear an override.
+  Type 'back' to finish.
+```
+
+- `ANTHROPIC_MODEL=my-model-name` — set a value
+- `ANTHROPIC_MODEL=` — clear/remove that override
+- blank Enter — does nothing (so you can't accidentally exit)
+- `back` — save and return to the provider submenu
 
 ---
 
