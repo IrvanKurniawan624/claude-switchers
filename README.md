@@ -4,19 +4,21 @@ Switch [Claude Code](https://claude.ai/code) between **Claude Pro** and any **An
 
 ---
 
-## Quick start
+## Commands
 
-```powershell
-claude-pro           # Claude Pro subscription (default)
-claude-deepseek      # DeepSeek API
-claude-kimi          # Kimi K2 (Moonshot)
-claude-glm           # GLM (Z.ai)
-claude-switch        # interactive picker — choose from all enabled providers
-claude-status        # show which provider is active in this session
-claude-config        # manage providers, API keys, add custom endpoints
-```
+| Command | What it does |
+|---|---|
+| `claude-pro` | Launch Claude Code with your Claude Pro subscription |
+| `claude-deepseek` | Launch with DeepSeek |
+| `claude-kimi` | Launch with Kimi K2 (Moonshot) |
+| `claude-glm` | Launch with GLM (Z.ai) |
+| `claude-<id>` | Launch with any enabled provider |
+| `claude-switch` | Arrow-key picker — choose a provider interactively |
+| `claude-switch <id>` | Launch a specific provider directly, e.g. `claude-switch kimi` |
+| `claude-status` | Show which provider is active in the current session |
+| `claude-config` | Open the config menu — manage providers, keys, custom endpoints |
 
-All commands pass extra arguments straight through to `claude`:
+All launch commands pass extra arguments through to `claude`:
 
 ```powershell
 claude-deepseek --resume
@@ -48,17 +50,17 @@ Claude Code reads model identity and API routing from environment variables. Thi
 
 ## Built-in providers
 
-| ID | Provider | Endpoint |
-|---|---|---|
-| `pro` | Claude Pro (subscription) | *(Anthropic default)* |
-| `deepseek` | DeepSeek | `api.deepseek.com/anthropic` |
-| `kimi` | Kimi K2 (Moonshot) | `api.moonshot.ai/anthropic` |
-| `glm` | GLM (Z.ai) | `api.z.ai/api/anthropic` |
-| `qwen` | Qwen (Alibaba) | `dashscope.aliyuncs.com/compatible-mode` |
-| `minimax` | MiniMax M2 | `api.minimax.chat/v1` |
-| `openrouter` | OpenRouter | `openrouter.ai/api/v1` |
+| ID | Provider | Endpoint | Default |
+|---|---|---|---|
+| `pro` | Claude Pro (subscription) | *(Anthropic default)* | enabled |
+| `deepseek` | DeepSeek | `api.deepseek.com/anthropic` | enabled |
+| `kimi` | Kimi K2 (Moonshot) | `api.moonshot.ai/anthropic` | disabled |
+| `glm` | GLM (Z.ai) | `api.z.ai/api/anthropic` | disabled |
+| `qwen` | Qwen (Alibaba) | `dashscope.aliyuncs.com/compatible-mode` | disabled |
+| `minimax` | MiniMax M2 | `api.minimax.chat/v1` | disabled |
+| `openrouter` | OpenRouter | `openrouter.ai/api/v1` | disabled |
 
-`pro` and `deepseek` are enabled by default. All others are disabled — enable them and add your API key via `claude-config`.
+Enable any provider and set its API key via `claude-config`.
 
 ---
 
@@ -68,9 +70,10 @@ Claude Code reads model identity and API routing from environment variables. Thi
 |---|---|
 | `config.example.json` | Provider presets template — committed to git |
 | `config.json` | Your live config with API keys — **never committed** |
-| `ClaudeSwitch.Core.ps1` | Shared config/launch functions |
+| `ClaudeSwitch.Core.ps1` | Shared config/launch/menu functions |
 | `ClaudeModelSwitchers.ps1` | Loaded by your PowerShell profile; registers all commands |
-| `claude-launch.ps1` | Non-interactive entry point used by CMD shims |
+| `claude-launch.ps1` | Non-interactive launcher used by per-provider CMD shims |
+| `claude-switch.ps1` | Interactive picker script used by `claude-switch.cmd` |
 | `claude-config.ps1` | Interactive config TUI |
 | `claude-config.cmd` / `claude-switch.cmd` | CMD entry shims |
 | `launchers/claude-<id>.cmd` | Per-provider CMD shims (generated, not committed) |
@@ -113,7 +116,7 @@ If you move the folder later, re-run the installer from the new location — it 
 claude-config
 ```
 
-Select a provider by number → `k` to set API key → `q` to save and quit.
+Use the arrow keys to select a provider, then choose **Set API key**. The key is validated against the provider's endpoint before saving. Press **Esc** or select **Save & quit** when done.
 
 ### Step 4 — Open a new terminal
 
@@ -123,7 +126,7 @@ Profile changes take effect in any new PowerShell or Command Prompt window.
 
 ## Managing providers
 
-### Interactive menu
+### Config menu
 
 ```powershell
 claude-config
@@ -134,35 +137,63 @@ claude-config
    Claude Code Provider Config
 ==========================================
 
- #   Provider              Status      Key
- --- -------------------- ---------- ----------
- 1   Claude Pro            enabled    (subscription)
- 2   DeepSeek              enabled    set
- 3   Kimi (Moonshot K2)    disabled   NOT SET
- 4   GLM (Z.ai)            disabled   NOT SET
- 5   Qwen (Alibaba)        disabled   NOT SET
- 6   MiniMax (M2)          disabled   NOT SET
- 7   OpenRouter            disabled   NOT SET
+  > Claude Pro            enabled    (subscription)
+    DeepSeek              enabled    key: set
+    Kimi (Moonshot K2)    disabled   key: NOT SET
+    GLM (Z.ai)            disabled   key: NOT SET
+    Qwen (Alibaba)        disabled   key: NOT SET
+    MiniMax (M2)          disabled   key: NOT SET
+    OpenRouter            disabled   key: NOT SET
+    ------------------------------------------
+    Add custom provider
+    Regenerate CMD commands
+    Uninstall
+    Save & quit
 
-  [number]  manage provider
-  a         add custom provider
-  r         regenerate CMD launch commands
-  u         uninstall claude-switchers
-  q         save and quit
+  [up/down] move   [enter] select   [esc] back
 ```
 
-Per-provider submenu: **toggle on/off**, **set/clear API key**, **edit base URL**, **edit model mapping**, **delete**.
+Use **arrow keys** to navigate, **Enter** to select. Selecting a provider opens its submenu where you can toggle it on/off, set or clear its API key, edit the base URL, or edit the model/env mapping.
+
+### Provider submenu
+
+```
+==========================================
+    Provider: Kimi (Moonshot K2)
+==========================================
+
+  > Toggle  (currently: DISABLED)
+    ------------------------------------------
+    Set API key  (not set)
+    Clear API key
+    Edit base URL  (https://api.moonshot.ai/anthropic)
+    Edit model / env overrides
+    ------------------------------------------
+    Delete this provider
+    ------------------------------------------
+    Back
+```
 
 ### Add a custom provider
 
-In `claude-config` → `a` — you'll be prompted for:
-- Short ID (becomes the `claude-<id>` command)
+Select **Add custom provider** in the config menu. You'll be prompted for:
+- Short ID (becomes the `claude-<id>` command, e.g. `myprovider` → `claude-myprovider`)
 - Display name
-- Base URL (Anthropic-compatible endpoint)
+- Base URL (any Anthropic-compatible endpoint)
 - API key
 - Default model name
 
-The command is available immediately in the current PowerShell session and in new CMD windows after saving.
+The new command is available immediately in the current PowerShell session and in new CMD windows after saving.
+
+### API key validation
+
+After setting a key you'll be asked whether to test it. The test hits the provider's `/v1/models` endpoint and reports:
+- `OK` — key is valid
+- `invalid key (401)` — wrong key
+- `reachable, key untested` — server responded but endpoint doesn't support `/models`; key is likely fine
+- `could not connect` — wrong base URL or no internet
+
+The key is saved regardless so you can correct it later.
 
 ---
 
