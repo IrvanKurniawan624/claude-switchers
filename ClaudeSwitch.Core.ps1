@@ -36,9 +36,17 @@ function Invoke-Menu {
     $idx   = $Default
     while ($idx -lt $count -and $Items[$idx] -eq '--') { $idx++ }
 
-    $startTop = [Console]::CursorTop
+    $W          = [Math]::Max(60, [Console]::WindowWidth - 4)
+    $totalLines = $count + 5  # title + blank + items + blank + footer
+
+    # Print blank lines to guarantee the menu fits without scrolling mid-draw.
+    # This scrolls the buffer upfront so $startTop stays valid on every redraw.
+    Write-Host ("`n" * $totalLines) -NoNewline
+    $startTop = [Console]::CursorTop - $totalLines
+    if ($startTop -lt 0) { $startTop = 0 }
+    [Console]::SetCursorPosition(0, $startTop)
+
     $firstDraw = $true
-    $W = [Math]::Max(60, [Console]::WindowWidth - 4)
 
     while ($true) {
         if (-not $firstDraw) { [Console]::SetCursorPosition(0, $startTop) }
@@ -84,7 +92,10 @@ function Test-ProviderKey {
             'x-api-key'         = $ApiKey
             'anthropic-version' = '2023-06-01'
         }
-        $resp = Invoke-WebRequest -Uri "$BaseUrl/v1/models" -Headers $headers `
+        # Avoid double /v1 for providers whose baseUrl already ends with /v1
+        $testBase = $BaseUrl.TrimEnd('/')
+        $testUrl  = if ($testBase -match '/v1$') { "$testBase/models" } else { "$testBase/v1/models" }
+        $resp = Invoke-WebRequest -Uri $testUrl -Headers $headers `
             -Method GET -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
         Write-Host " OK ($($resp.StatusCode))" -ForegroundColor Green
         return $true
@@ -204,6 +215,8 @@ function Invoke-ClaudeProvider {
     $env:CLAUDE_ACTIVE_PROVIDER = $provider.id
 
     if ($provider.type -eq 'subscription') {
+        # Record managed vars so the next provider launch clears them correctly
+        $env:CLAUDE_ACTIVE_ENV_KEYS = ($script:ManagedEnvVars -join ',')
         Write-Host "Claude Code session set to Claude Pro (subscription defaults)." -ForegroundColor Cyan
     } else {
         # Resolve API key: config.json → ${ID}_API_KEY env var → legacy DEEPSEEK_API_KEY (deepseek only)

@@ -14,7 +14,8 @@ if (-not [string]::IsNullOrWhiteSpace($Id)) {
     exit
 }
 
-$config  = Get-SwitcherConfig
+$config = Get-SwitcherConfig
+if (-not $config) { Write-Error 'Cannot load config.'; exit 1 }
 $enabled = @($config.providers | Where-Object { $_.enabled })
 
 if ($enabled.Count -eq 0) {

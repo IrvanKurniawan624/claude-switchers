@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$switcherDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$switcherDir  = $PSScriptRoot
 $modulePath   = Join-Path $switcherDir "ClaudeModelSwitchers.ps1"
 $launchersDir = Join-Path $switcherDir "launchers"
 $documents    = [Environment]::GetFolderPath("MyDocuments")
@@ -23,7 +23,7 @@ foreach ($profilePath in $profilePaths) {
     if (-not (Test-Path -LiteralPath $profilePath)) {
         Write-Host "No profile found at: $profilePath"
         Write-Host "  To create it and re-run, paste this command:"
-        Write-Host "    New-Item -Path '$profilePath' -ItemType File -Force; powershell -ExecutionPolicy Bypass -File '$($MyInvocation.MyCommand.Path)'"
+        Write-Host "    New-Item -Path '$profilePath' -ItemType File -Force; powershell -ExecutionPolicy Bypass -File '$(Join-Path $switcherDir 'install-switchers.ps1')'"
         continue
     }
 

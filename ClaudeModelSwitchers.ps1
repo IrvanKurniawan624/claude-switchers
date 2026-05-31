@@ -8,8 +8,20 @@ Initialize-SwitcherConfig
 function claude-config {
     # Run inline (same process/terminal — no subprocess window)
     & (Join-Path $PSScriptRoot 'claude-config.ps1')
-    # Reload so any newly enabled providers get their functions registered
-    . (Join-Path $PSScriptRoot 'ClaudeModelSwitchers.ps1')
+    # Re-register only provider functions for newly enabled providers.
+    # Do NOT dot-source the whole file — that would re-run Initialize-SwitcherConfig
+    # and the .env migration on every config exit.
+    $__rl = Get-SwitcherConfig
+    if ($__rl) {
+        foreach ($__rlp in $__rl.providers) {
+            if (-not $__rlp.enabled) { continue }
+            $__rli = $__rlp.id
+            Set-Item "function:global:claude-$__rli" -Value (
+                [scriptblock]::Create("param([Parameter(ValueFromRemainingArguments)][string[]]`$Rest); Invoke-ClaudeProvider -Id '$__rli' -Rest `$Rest")
+            )
+        }
+    }
+    Remove-Variable __rl, __rlp, __rli -ErrorAction SilentlyContinue
 }
 
 function claude-status {
