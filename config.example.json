@@ -1,0 +1,124 @@
+{
+  "providers": [
+    {
+      "id": "pro",
+      "name": "Claude Pro (subscription)",
+      "type": "subscription",
+      "enabled": true
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "type": "api",
+      "enabled": true,
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    },
+    {
+      "id": "kimi",
+      "name": "Kimi (Moonshot K2.5)",
+      "type": "api",
+      "enabled": false,
+      "baseUrl": "https://api.moonshot.ai/anthropic",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "kimi-k2.5",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "kimi-k2.5",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-k2.5",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-k2.5",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "kimi-k2.5",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    },
+    {
+      "id": "glm",
+      "name": "GLM (Z.ai)",
+      "type": "api",
+      "enabled": false,
+      "baseUrl": "https://api.z.ai/api/anthropic",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "GLM-4.7",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "GLM-4.7",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "GLM-4.7",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "GLM-4.5-Air",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "GLM-4.5-Air",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    },
+    {
+      "id": "qwen",
+      "name": "Qwen (Alibaba)",
+      "type": "api",
+      "enabled": false,
+      "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "qwen3.5-plus",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "qwen3.5-plus",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "qwen3.5-plus",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "qwen3-coder-next",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "qwen3-coder-next",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "type": "api",
+      "enabled": false,
+      "baseUrl": "https://api.minimax.io/anthropic",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "MiniMax-M2.7",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2.7",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2.7",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2.7",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "MiniMax-M2.7",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "type": "api",
+      "enabled": false,
+      "baseUrl": "https://openrouter.ai/api",
+      "apiKey": "",
+      "env": {
+        "ANTHROPIC_MODEL": "~anthropic/claude-opus-latest",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "~anthropic/claude-opus-latest",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "~anthropic/claude-sonnet-latest",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "~anthropic/claude-haiku-latest",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "~anthropic/claude-opus-latest",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK": "1",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "API_TIMEOUT_MS": "600000"
+      }
+    }
+  ]
+}
