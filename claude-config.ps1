@@ -207,6 +207,62 @@ function Add-CustomProvider {
 }
 
 # ---------------------------------------------------------------------------
+# Reset to defaults
+# ---------------------------------------------------------------------------
+function Reset-ToDefaults {
+    param([object]$Config)
+
+    $examplePath = Join-Path $script:SwitcherDir 'config.example.json'
+    if (-not (Test-Path $examplePath)) {
+        Write-Host "  config.example.json not found." -ForegroundColor Red
+        Start-Sleep 2
+        return
+    }
+
+    Clear-Host
+    Write-Host ''
+    Write-Host "  ===========================================" -ForegroundColor Yellow
+    Write-Host "    Reset to default" -ForegroundColor Yellow
+    Write-Host "  ===========================================" -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host "  What this does:" -ForegroundColor White
+    Write-Host "    - Replaces the provider list with only the built-in presets" -ForegroundColor Gray
+    Write-Host "      (pro, deepseek, kimi, glm, qwen, minimax, openrouter)" -ForegroundColor Gray
+    Write-Host "    - Restores default URLs and model settings for each" -ForegroundColor Gray
+    Write-Host "    - Re-adds any built-in providers you deleted" -ForegroundColor Gray
+    Write-Host ''
+    Write-Host "  What is lost:" -ForegroundColor White
+    Write-Host "    - All custom providers you added are deleted" -ForegroundColor Red
+    Write-Host "    - URL and model edits on built-in providers are overwritten" -ForegroundColor Red
+    Write-Host ''
+    Write-Host "  What is kept:" -ForegroundColor White
+    Write-Host "    - API keys on built-in providers" -ForegroundColor Gray
+    Write-Host "    - Enabled/disabled state on built-in providers" -ForegroundColor Gray
+    Write-Host ''
+
+    if (-not (Confirm-Action 'Reset to default?')) { return }
+
+    $example  = Get-Content $examplePath -Raw | ConvertFrom-Json
+
+    $newProviders = @()
+    foreach ($ep in $example.providers) {
+        $existing = $Config.providers | Where-Object { $_.id -eq $ep.id } | Select-Object -First 1
+        if ($existing) {
+            $existing.name = $ep.name
+            if ($ep.PSObject.Properties['baseUrl']) { $existing.baseUrl = $ep.baseUrl }
+            if ($ep.PSObject.Properties['env'])     { $existing.env     = $ep.env     }
+            $newProviders += $existing
+        } else {
+            $newProviders += $ep
+        }
+    }
+    $Config.providers = $newProviders
+
+    Write-Host "  Config reset to defaults." -ForegroundColor Green
+    Start-Sleep 2
+}
+
+# ---------------------------------------------------------------------------
 # Uninstall
 # ---------------------------------------------------------------------------
 function Run-Uninstall {
@@ -216,13 +272,20 @@ function Run-Uninstall {
     Write-Host "    Uninstall claude-switchers" -ForegroundColor Yellow
     Write-Host "  ===========================================" -ForegroundColor Yellow
     Write-Host ''
-    Write-Host "  This will remove:" -ForegroundColor Gray
-    Write-Host "    - Claude switchers block from PowerShell profiles" -ForegroundColor Gray
-    Write-Host "    - Switcher folder and launchers\ from user PATH" -ForegroundColor Gray
-    Write-Host "    - launchers\, config.json, and .env" -ForegroundColor Gray
+    Write-Host "  What this does:" -ForegroundColor White
+    Write-Host "    - Removes claude-switchers from your PowerShell profiles" -ForegroundColor Gray
+    Write-Host "      (claude-config, claude-switch, claude-status, claude-<id> all stop working)" -ForegroundColor Gray
+    Write-Host "    - Removes the switcher folder and launchers\ from your PATH" -ForegroundColor Gray
+    Write-Host "    - Deletes launchers\*.cmd, config.json, and .env" -ForegroundColor Gray
+    Write-Host ''
+    Write-Host "  What is NOT removed:" -ForegroundColor White
+    Write-Host "    - The repo folder itself (scripts, config.example.json, README)" -ForegroundColor Gray
+    Write-Host "    - Claude Code itself" -ForegroundColor Gray
+    Write-Host ''
+    Write-Host "  To reinstall later, re-run install-switchers.ps1." -ForegroundColor DarkGray
     Write-Host ''
 
-    if (-not (Confirm-Action 'Proceed with uninstall?')) {
+    if (-not (Confirm-Action 'Uninstall? This removes your config and all saved keys.')) {
         return
     }
 
@@ -311,7 +374,8 @@ while ($true) {
     $menuItems   += '--'
     $addIdx       = $menuItems.Count; $menuItems += 'Add custom provider'
     $regenIdx     = $menuItems.Count; $menuItems += 'Regenerate CMD commands'
-    $uninstallIdx = $menuItems.Count; $menuItems += 'Uninstall'
+    $resetIdx     = $menuItems.Count; $menuItems += 'Reset to default'
+    $uninstallIdx = $menuItems.Count; $menuItems += 'Uninstall  (removes config, keys, PATH)'
     $quitIdx      = $menuItems.Count; $menuItems += 'Save & quit'
 
     $sel = Invoke-Menu -Items $menuItems
@@ -333,6 +397,10 @@ while ($true) {
         Update-ClaudeLaunchers
         Write-Host "  CMD launch commands regenerated." -ForegroundColor Green
         Start-Sleep 1
+    } elseif ($sel -eq $resetIdx) {
+        Reset-ToDefaults -Config $config
+        Save-SwitcherConfig $config
+        Update-ClaudeLaunchers
     } elseif ($sel -eq $uninstallIdx) {
         Run-Uninstall
     }

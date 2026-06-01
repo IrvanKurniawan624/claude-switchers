@@ -120,6 +120,25 @@ function Test-ProviderKey {
 # Config read / write
 # ---------------------------------------------------------------------------
 
+function Protect-SwitcherConfigFile {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    try {
+        $acl  = Get-Acl -LiteralPath $Path
+        $me   = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $me, 'FullControl', 'Allow'
+        )
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetAccessRule($rule)
+        [System.IO.File]::SetAccessControl($Path, $acl)
+    } catch {
+        Write-Warning "Could not restrict config.json permissions: $($_.Exception.Message)"
+    }
+}
+
 function Get-SwitcherConfig {
     $configPath   = Join-Path $script:SwitcherDir 'config.json'
     $examplePath  = Join-Path $script:SwitcherDir 'config.example.json'
@@ -127,20 +146,7 @@ function Get-SwitcherConfig {
     if (-not (Test-Path $configPath)) {
         if (Test-Path $examplePath) {
             Copy-Item $examplePath $configPath
-            # Restrict config.json to the current user — prevents other local accounts
-            # from reading API keys stored in plain text
-            try {
-                $acl = New-Object System.Security.AccessControl.FileSecurity
-                $acl.SetAccessRuleProtection($true, $false)
-                $me   = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-                $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                    $me, 'FullControl', 'Allow'
-                )
-                $acl.SetAccessRule($rule)
-                Set-Acl -Path $configPath -AclObject $acl
-            } catch {
-                # ACL restriction failed (non-fatal); config.json may be readable by local users
-            }
+            Protect-SwitcherConfigFile $configPath
         } else {
             Write-Warning "config.example.json not found in $script:SwitcherDir"
             return $null
@@ -160,16 +166,61 @@ function Save-SwitcherConfig {
     param([Parameter(Mandatory)][object]$Config)
     $configPath = Join-Path $script:SwitcherDir 'config.json'
     $Config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+    Protect-SwitcherConfigFile $configPath
 }
 
 # ---------------------------------------------------------------------------
-# Preset URL migration — fixes stale baseUrls in existing config.json
+# Preset migrations — update known stale defaults without touching custom values
 # ---------------------------------------------------------------------------
 
 $script:PresetUrlMigrations = @{
     'qwen'       = @{ from = @('https://dashscope.aliyuncs.com/compatible-mode','https://dashscope-intl.aliyuncs.com/compatible-mode/v1'); to = 'https://dashscope-intl.aliyuncs.com/apps/anthropic' }
     'minimax'    = @{ from = @('https://api.minimax.chat/v1');                                                                               to = 'https://api.minimax.io/anthropic' }
     'openrouter' = @{ from = @('https://openrouter.ai/api/v1');                                                                              to = 'https://openrouter.ai/api' }
+}
+
+$script:PresetModelMigrations = @{
+    'deepseek' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('deepseek-v4-pro');     to = 'deepseek-v4-pro[1m]' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('deepseek-v4-pro');     to = 'deepseek-v4-pro[1m]' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('deepseek-v4-pro');     to = 'deepseek-v4-pro[1m]' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('deepseek-v4-pro');     to = 'deepseek-v4-flash' }
+    }
+    'kimi' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('kimi-k2');             to = 'kimi-k2.5' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('kimi-k2');             to = 'kimi-k2.5' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('kimi-k2');             to = 'kimi-k2.5' }
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL'  = @{ from = @('kimi-k2');             to = 'kimi-k2.5' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('kimi-k2');             to = 'kimi-k2.5' }
+    }
+    'glm' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('glm-4.6');             to = 'GLM-4.7' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('glm-4.6');             to = 'GLM-4.7' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('glm-4.6');             to = 'GLM-4.7' }
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL'  = @{ from = @('glm-4.6');             to = 'GLM-4.5-Air' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('glm-4.6');             to = 'GLM-4.5-Air' }
+    }
+    'qwen' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('qwen3-235b-a22b');     to = 'qwen3.5-plus' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('qwen3-235b-a22b');     to = 'qwen3.5-plus' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('qwen3-235b-a22b');     to = 'qwen3.5-plus' }
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL'  = @{ from = @('qwen3-30b-a3b');       to = 'qwen3-coder-next' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('qwen3-235b-a22b', 'qwen3-30b-a3b'); to = 'qwen3-coder-next' }
+    }
+    'minimax' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('MiniMax-M2');          to = 'MiniMax-M2.7' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('MiniMax-M2');          to = 'MiniMax-M2.7' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('MiniMax-M2');          to = 'MiniMax-M2.7' }
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL'  = @{ from = @('MiniMax-M2');          to = 'MiniMax-M2.7' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('MiniMax-M2');          to = 'MiniMax-M2.7' }
+    }
+    'openrouter' = @{
+        'ANTHROPIC_MODEL'                = @{ from = @('anthropic/claude-opus-4');       to = '~anthropic/claude-opus-latest' }
+        'ANTHROPIC_DEFAULT_OPUS_MODEL'   = @{ from = @('anthropic/claude-opus-4');       to = '~anthropic/claude-opus-latest' }
+        'ANTHROPIC_DEFAULT_SONNET_MODEL' = @{ from = @('anthropic/claude-sonnet-4-5');   to = '~anthropic/claude-sonnet-latest' }
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL'  = @{ from = @('anthropic/claude-haiku-4-5');    to = '~anthropic/claude-haiku-latest' }
+        'CLAUDE_CODE_SUBAGENT_MODEL'     = @{ from = @('anthropic/claude-opus-4', 'anthropic/claude-haiku-4-5'); to = '~anthropic/claude-opus-latest' }
+    }
 }
 
 function Update-ProviderPresets {
@@ -179,6 +230,26 @@ function Update-ProviderPresets {
         $fix = $script:PresetUrlMigrations[$p.id]
         if ($fix -and $p.baseUrl -in $fix.from) {
             $p.baseUrl = $fix.to
+            $changed = $true
+        }
+
+        $modelFixes = $script:PresetModelMigrations[$p.id]
+        if ($modelFixes -and $p.env) {
+            foreach ($property in $modelFixes.Keys) {
+                $modelFix = $modelFixes[$property]
+                if ($p.env.PSObject.Properties[$property] -and $p.env.$property -in $modelFix.from) {
+                    $p.env.$property = $modelFix.to
+                    $changed = $true
+                }
+            }
+        }
+
+        if ($p.id -eq 'minimax' -and $p.name -eq 'MiniMax (M2)') {
+            $p.name = 'MiniMax'
+            $changed = $true
+        }
+        if ($p.id -eq 'kimi' -and $p.name -eq 'Kimi (Moonshot K2)') {
+            $p.name = 'Kimi (Moonshot K2.5)'
             $changed = $true
         }
     }
@@ -192,6 +263,7 @@ function Update-ProviderPresets {
 function Initialize-SwitcherConfig {
     $config = Get-SwitcherConfig
     if (-not $config) { return }
+    Protect-SwitcherConfigFile (Join-Path $script:SwitcherDir 'config.json')
 
     # Load .env into current process (same as legacy ClaudeModelSwitchers.ps1)
     $envFile = Join-Path $script:SwitcherDir '.env'
@@ -228,6 +300,68 @@ function Initialize-SwitcherConfig {
 # Launch a provider
 # ---------------------------------------------------------------------------
 
+function ConvertTo-NativeCommandLineArgument {
+    param([AllowEmptyString()][string]$Value)
+
+    if ([string]::IsNullOrEmpty($Value)) { return '""' }
+    if ($Value -notmatch '[\s"]') { return $Value }
+
+    $builder = New-Object Text.StringBuilder
+    [void]$builder.Append('"')
+    $slashes = 0
+    foreach ($char in $Value.ToCharArray()) {
+        if ($char -eq '\') {
+            $slashes++
+        } elseif ($char -eq '"') {
+            [void]$builder.Append(('\' * (($slashes * 2) + 1)))
+            [void]$builder.Append('"')
+            $slashes = 0
+        } else {
+            if ($slashes -gt 0) { [void]$builder.Append(('\' * $slashes)) }
+            [void]$builder.Append($char)
+            $slashes = 0
+        }
+    }
+    if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Invoke-ClaudeCli {
+    param(
+        [string[]]$Arguments = @(),
+        [switch]$ExplicitEmptyAnthropicApiKey
+    )
+
+    if (-not $ExplicitEmptyAnthropicApiKey) {
+        if ($Arguments.Count -gt 0) { & claude @Arguments }
+        else { & claude }
+        return
+    }
+
+    # Windows PowerShell removes process env vars assigned an empty string.
+    # Launch the native CLI directly so OpenRouter receives ANTHROPIC_API_KEY=''
+    # exactly as required, while preserving interactive terminal behavior.
+    $command = Get-Command claude -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    if ([IO.Path]::GetExtension($command.Source) -notin @('.exe', '.com')) {
+        Write-Error 'OpenRouter on Windows requires the native Claude Code installer so ANTHROPIC_API_KEY can be passed as an explicitly empty value.'
+        return
+    }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $command.Source
+    $psi.Arguments = (($Arguments | ForEach-Object {
+        ConvertTo-NativeCommandLineArgument $_
+    }) -join ' ')
+    $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = (Get-Location).Path
+    $psi.EnvironmentVariables['ANTHROPIC_API_KEY'] = ''
+
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $process.WaitForExit()
+    $global:LASTEXITCODE = $process.ExitCode
+}
+
 function Invoke-ClaudeProvider {
     param(
         [Parameter(Mandatory)][string]$Id,
@@ -262,6 +396,23 @@ function Invoke-ClaudeProvider {
         if ([string]::IsNullOrWhiteSpace($apiKey)) {
             Write-Host "No API key set for '$($provider.name)'." -ForegroundColor Yellow
             Write-Host "Run claude-config to set your key, or set `$env:$($provider.id.ToUpper())_API_KEY for this session." -ForegroundColor Yellow
+            return  # Previous provider state is untouched
+        }
+    }
+
+    $needsEmptyAnthropicApiKey = (
+        $provider.id -eq 'openrouter' -or
+        (
+            -not [string]::IsNullOrWhiteSpace($provider.baseUrl) -and
+            $provider.baseUrl.TrimEnd('/') -ieq 'https://openrouter.ai/api'
+        )
+    )
+    if ($needsEmptyAnthropicApiKey) {
+        $nativeClaude = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue |
+            Where-Object { [IO.Path]::GetExtension($_.Source) -in @('.exe', '.com') } |
+            Select-Object -First 1
+        if (-not $nativeClaude) {
+            Write-Error 'OpenRouter on Windows requires the native Claude Code installer so ANTHROPIC_API_KEY can be passed as an explicitly empty value.'
             return  # Previous provider state is untouched
         }
     }
@@ -304,11 +455,7 @@ function Invoke-ClaudeProvider {
         Write-Host "Claude Code session set to $($provider.name): $modelDisplay" -ForegroundColor Cyan
     }
 
-    if ($Rest.Count -gt 0) {
-        & claude @Rest
-    } else {
-        & claude
-    }
+    Invoke-ClaudeCli -Arguments $Rest -ExplicitEmptyAnthropicApiKey:$needsEmptyAnthropicApiKey
 }
 
 # ---------------------------------------------------------------------------

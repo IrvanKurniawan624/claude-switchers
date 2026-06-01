@@ -10,11 +10,10 @@ Switch [Claude Code](https://claude.ai/code) between **Claude Pro** and any **An
 |---|---|
 | `claude-pro` | Launch Claude Code with your Claude Pro subscription |
 | `claude-deepseek` | Launch with DeepSeek |
-| `claude-kimi` | Launch with Kimi K2 (Moonshot) |
+| `claude-kimi` | Launch with Kimi K2.5 (Moonshot) |
 | `claude-glm` | Launch with GLM (Z.ai) |
 | `claude-<id>` | Launch with any enabled provider |
 | `claude-switch` | Arrow-key picker — choose a provider interactively |
-| `claude-switch <id>` | Launch a specific provider directly, e.g. `claude-switch kimi` |
 | `claude-status` | Show which provider is active in the current session |
 | `claude-config` | Open the config menu — manage providers, keys, custom endpoints |
 
@@ -23,7 +22,6 @@ All launch commands pass extra arguments through to `claude`:
 ```powershell
 claude-deepseek --resume
 claude-kimi --dangerously-skip-permissions
-claude-switch pro --version
 ```
 
 ---
@@ -54,15 +52,17 @@ Claude Code reads model identity and API routing from environment variables. Thi
 |---|---|---|---|
 | `pro` | Claude Pro (subscription) | *(Anthropic default)* | enabled |
 | `deepseek` | DeepSeek | `api.deepseek.com/anthropic` | enabled |
-| `kimi` | Kimi K2 (Moonshot) | `api.moonshot.ai/anthropic` | disabled |
+| `kimi` | Kimi K2.5 (Moonshot) | `api.moonshot.ai/anthropic` | disabled |
 | `glm` | GLM (Z.ai) | `api.z.ai/api/anthropic` | disabled |
 | `qwen` | Qwen (Alibaba) | `dashscope-intl.aliyuncs.com/apps/anthropic` | disabled |
-| `minimax` | MiniMax M2 | `api.minimax.io/anthropic` | disabled |
+| `minimax` | MiniMax M2.7 | `api.minimax.io/anthropic` | disabled |
 | `openrouter` | OpenRouter | `openrouter.ai/api` | disabled |
 
 Enable any provider and set its API key via `claude-config`.
 
-> If you have an older `config.json` with stale endpoints, they are updated automatically the next time any command loads the config — your keys and custom providers are not touched.
+> **Upgrading from an older version?** If your `config.json` has outdated URLs or model names for the built-in providers, they are patched automatically when any command starts. Your API keys, enabled/disabled state, and any custom providers you added are never touched.
+
+> **OpenRouter on Windows** only works if you installed Claude Code using the [official Windows installer](https://claude.ai/install.ps1) (the `.ps1` script, not npm). OpenRouter requires an empty `ANTHROPIC_API_KEY` to be passed to the child process, which the native `.exe` handles correctly. The npm version does not.
 
 ---
 
@@ -71,7 +71,7 @@ Enable any provider and set its API key via `claude-config`.
 | File | Description |
 |---|---|
 | `config.example.json` | Provider presets template — committed to git |
-| `config.json` | Your live config with API keys — **never committed** |
+| `config.json` | Your live config with API keys — restricted to your Windows account and **never committed** |
 | `ClaudeSwitch.Core.ps1` | Shared config/launch/menu functions |
 | `ClaudeModelSwitchers.ps1` | Loaded by your PowerShell profile; registers all commands |
 | `claude-launch.ps1` | Non-interactive launcher used by per-provider CMD shims |
@@ -110,7 +110,7 @@ The installer:
 
 If you move the folder later, re-run the installer from the new location — it updates both profiles and **removes the old PATH entries** automatically.
 
-> **Note:** The installer only patches profiles that already exist. If you have no profile, it will tell you the command to create one.
+> **Note:** If no PowerShell profile exists, the installer creates one automatically.
 
 ### Step 3 — Set your API keys
 
@@ -141,15 +141,16 @@ claude-config
 
   > Claude Pro            enabled    (subscription)
     DeepSeek              enabled    key: set
-    Kimi (Moonshot K2)    disabled   key: NOT SET
+    Kimi (Moonshot K2.5)  disabled   key: NOT SET
     GLM (Z.ai)            disabled   key: NOT SET
     Qwen (Alibaba)        disabled   key: NOT SET
-    MiniMax (M2)          disabled   key: NOT SET
+    MiniMax               disabled   key: NOT SET
     OpenRouter            disabled   key: NOT SET
     ------------------------------------------
     Add custom provider
     Regenerate CMD commands
-    Uninstall
+    Reset to default
+    Uninstall  (removes config, keys, PATH)
     Save & quit
 
   [up/down] move   [enter] select   [esc] back
@@ -157,13 +158,15 @@ claude-config
 
 Use **arrow keys** to navigate, **Enter** to select. Selecting a provider opens its submenu where you can toggle it on/off, set or clear its API key, edit the base URL, or edit the model/env mapping.
 
+**Reset to default** restores all built-in providers to their original URLs and model settings from `config.example.json`. Your API keys and enabled/disabled state on built-in providers are kept. Any custom providers you added are removed.
+
 > **Disabled providers cannot be launched** — calling `claude-kimi` while Kimi is disabled shows a clear message instead of silently failing. Disabling a provider also immediately removes its `claude-<id>` command from your PowerShell session.
 
 ### Provider submenu
 
 ```
 ==========================================
-    Provider: Kimi (Moonshot K2)
+    Provider: Kimi (Moonshot K2.5)
 ==========================================
 
   > Toggle  (currently: DISABLED)

@@ -58,18 +58,8 @@ function claude-status {
 }
 
 function claude-switch {
-    param(
-        [Parameter(Position = 0)][string]$Id,
-        [Parameter(Position = 1, ValueFromRemainingArguments)][string[]]$Rest
-    )
-
     $config = Get-SwitcherConfig
     if (-not $config) { return }
-
-    if (-not [string]::IsNullOrWhiteSpace($Id)) {
-        Invoke-ClaudeProvider -Id $Id -Rest $Rest
-        return
-    }
 
     $enabled = @($config.providers | Where-Object { $_.enabled })
     if ($enabled.Count -eq 0) {
@@ -80,7 +70,7 @@ function claude-switch {
     Write-Host ''
     $sel = Invoke-Menu -Items ($enabled | ForEach-Object { $_.name }) -Title 'Select a provider'
     if ($sel -ge 0) {
-        Invoke-ClaudeProvider -Id $enabled[$sel].id -Rest $Rest
+        Invoke-ClaudeProvider -Id $enabled[$sel].id
     }
 }
 
